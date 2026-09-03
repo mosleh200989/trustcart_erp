@@ -251,3 +251,10 @@ export class SetExampleDto {
   @IsBoolean()
   is_example!: boolean;
 }
+
+/** Replace the current style-example selection with exactly these messages. */
+export class ApplyExamplesDto {
+  @IsArray()
+  @IsInt({ each: true })
+  ids!: number[];
+}

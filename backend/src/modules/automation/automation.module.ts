@@ -33,6 +33,7 @@ import { ReplyBrainService } from './facebook/reply-brain.service';
 import { FacebookOutboxService } from './facebook/facebook-outbox.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
 import { HistoryImportService } from './history/history-import.service';
+import { HistoryCurationService } from './history/history-curation.service';
 
 import { AutomationController } from './automation.controller';
 import { AutomationGateController } from './automation-gate.controller';
@@ -87,6 +88,7 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
     FacebookOutboxService,
     FacebookEventService,
     HistoryImportService,
+    HistoryCurationService,
     MetaWebhookGuard,
   ],
   exports: [AutomationSettingsService, TypeOrmModule],

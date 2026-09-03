@@ -23,6 +23,7 @@ import { AutomationAuditService } from './automation-audit.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
 import { FacebookOutboxService } from './facebook/facebook-outbox.service';
 import { HistoryImportService } from './history/history-import.service';
+import { HistoryCurationService } from './history/history-curation.service';
 import {
   CreateChannelDto,
   CreateRuleDto,
@@ -36,6 +37,7 @@ import {
   UpdateSettingsSectionDto,
   StartImportDto,
   SetExampleDto,
+  ApplyExamplesDto,
 } from './dto/automation.dto';
 
 /** Settings sections the panel is allowed to patch. `gate` is off-limits here. */
@@ -57,6 +59,7 @@ export class AutomationController {
     private readonly events: FacebookEventService,
     private readonly outbox: FacebookOutboxService,
     private readonly historyImport: HistoryImportService,
+    private readonly curation: HistoryCurationService,
   ) {}
 
   private actor(request: Request) {
@@ -461,6 +464,28 @@ export class AutomationController {
       is_example: dto.is_example,
     });
     return message;
+  }
+
+  @Post('history/reclean')
+  @RequirePermissions('import-automation-history')
+  async recleanHistory(@Req() request: Request) {
+    const result = await this.curation.recleanStored();
+    await this.audit.record(this.actor(request), 'history.reclean', 'history_message', null, null, result);
+    return result;
+  }
+
+  @Get('history/suggest-examples')
+  @RequirePermissions('view-automation')
+  suggestExamples(@Query('per_intent') perIntent?: string) {
+    return this.curation.suggestExamples(perIntent ? Number(perIntent) : 4);
+  }
+
+  @Post('history/apply-examples')
+  @RequirePermissions('import-automation-history')
+  async applyExamples(@Body() dto: ApplyExamplesDto, @Req() request: Request) {
+    const result = await this.curation.applyExamples(dto.ids);
+    await this.audit.record(this.actor(request), 'history.apply_examples', 'history_message', null, null, result);
+    return result;
   }
 
   @Get('audit')

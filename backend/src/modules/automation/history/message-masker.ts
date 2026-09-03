@@ -54,7 +54,17 @@ const RULES: Array<{ token: string; pattern: RegExp }> = [
   // write a price in Bangla survives masking completely, which is the single
   // worst leak this file can have. \b is ASCII-only in JS and would not match
   // against Bengali script, so it is deliberately absent here.
-  { token: 'PRICE', pattern: /\d[\d,]*(?:\.\d+)?\s?(?:টাকা|টকা|৳)/g },
+  //
+  // The emphasis classes are not decoration. Messenger wraps figures in bold or
+  // italics — "*990* টাকা" and "_850_ taka" are both how real agents write it —
+  // and requiring the digits to sit flush against the currency word let exactly
+  // that through into the store.
+  //
+  // The leading class must be consumed rather than skipped, and \b cannot guard
+  // the digits: underscore is a word character, so "_990_ taka" has no boundary
+  // to match and leaked completely. A lookbehind does the job \b was doing.
+  { token: 'PRICE', pattern: /[*_~`]*(?<![\d.])\d[\d,]*(?:\.\d+)?[*_~`\s]*(?:টাকা|টকা|৳)/g },
+  { token: 'PRICE', pattern: /[*_~`]*(?<![\d.])\d[\d,]*(?:\.\d+)?[*_~`\s]*(?:tk|tka|taka|bdt)\b/gi },
   // 850 tk / 850 taka / 850 BDT
   { token: 'PRICE', pattern: /\b\d[\d,]*(?:\.\d+)?\s?(?:tk|tka|taka|bdt)\b/gi },
   // 850/- — the slash must be escaped, and a trailing \b would never match
