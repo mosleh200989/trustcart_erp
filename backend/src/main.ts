@@ -7,6 +7,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AuditInterceptor } from './modules/audit-log/audit.interceptor';
 import { AuditLogService } from './modules/audit-log/audit-log.service';
+import { assertJwtSecretConfigured } from './common/jwt-secret';
 import { join } from 'path';
 import * as fs from 'fs';
 
@@ -14,6 +15,10 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
+
+  // Refuse to serve without a real signing secret. ConfigModule has loaded
+  // .env by this point, so this is the earliest honest place to check.
+  assertJwtSecretConfigured();
   app.set('trust proxy', true);
   const port = process.env.PORT || 3001;
 
@@ -121,17 +126,27 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger Documentation
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('TrustCart ERP API')
-    .setDescription('Backend API for TrustCart (Organic Grocery)')
-    .setVersion('2.0.0')
-    .addBearerAuth()
-    .addBasicAuth()
-    .build();
+  // Swagger Documentation.
+  //
+  // Off unless asked for. /api/docs used to answer 200 to anyone on the
+  // internet, handing an attacker every route, parameter and DTO the backend
+  // has. Set ENABLE_API_DOCS=true in backend/.env to turn it back on for a
+  // machine that needs it; development gets it without asking.
+  const docsEnabled =
+    process.env.ENABLE_API_DOCS === 'true' || process.env.NODE_ENV === 'development';
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  if (docsEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('TrustCart ERP API')
+      .setDescription('Backend API for TrustCart (Organic Grocery)')
+      .setVersion('2.0.0')
+      .addBearerAuth()
+      .addBasicAuth()
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   await app.listen(port);
   
