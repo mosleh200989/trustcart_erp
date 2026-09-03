@@ -84,6 +84,61 @@ type Statistics = {
   }>;
 };
 
+type AttemptRow = {
+  id: number;
+  identifier: string;
+  result: string;
+  ipAddress?: string | null;
+  deviceType?: string | null;
+  deviceLabel?: string | null;
+  createdAt: string;
+  userId: number | null;
+  userName?: string | null;
+};
+
+type AttemptStatistics = {
+  policy: {
+    identifier: { maxFailures: number; windowMinutes: number; lockMinutes: number };
+    ip: { maxFailures: number; windowMinutes: number; lockMinutes: number };
+  };
+  totals: {
+    failedToday: number;
+    failedLast7Days: number;
+    failedLastHour: number;
+    successToday: number;
+    identifiersFailing24h: number;
+    ipsFailing24h: number;
+    lockedNow: number;
+  };
+  locked: Array<{
+    identifier: string;
+    failures: number;
+    newestFailure: string;
+    lockedUntil: string;
+    ipAddress?: string | null;
+  }>;
+  topIps: Array<{ ipAddress: string; failures: number; identifiers: number; newest: string }>;
+  byResult: Array<{ result: string; attempts: number }>;
+};
+
+const ATTEMPT_RESULT_LABELS: Record<string, string> = {
+  success: 'Signed in',
+  invalid_password: 'Wrong password',
+  unknown_account: 'No such account',
+  inactive: 'Account inactive',
+  locked: 'Locked out',
+  unlocked: 'Unlocked by admin',
+};
+
+const ATTEMPT_RESULT_STYLES: Record<string, string> = {
+  success: 'bg-emerald-100 text-emerald-700',
+  invalid_password: 'bg-amber-100 text-amber-800',
+  unknown_account: 'bg-red-100 text-red-700',
+  inactive: 'bg-gray-200 text-gray-700',
+  locked: 'bg-red-100 text-red-700',
+  unlocked: 'bg-blue-100 text-blue-700',
+};
+
 const DEVICE_ICONS: Record<string, any> = {
   desktop: FaDesktop,
   mobile: FaMobileAlt,
@@ -178,9 +233,14 @@ export default function UserSessionsPage() {
   const [search, setSearch] = useState('');
   const [windowMinutes, setWindowMinutes] = useState(15);
 
+  const [attemptStats, setAttemptStats] = useState<AttemptStatistics | null>(null);
+  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
+  const [attemptResult, setAttemptResult] = useState('failures');
+
   const [confirm, setConfirm] = useState<
     | { kind: 'session'; id: number; label: string }
     | { kind: 'user'; userId: number; name: string; count: number }
+    | { kind: 'unlock'; identifier: string }
     | null
   >(null);
 
@@ -188,6 +248,15 @@ export default function UserSessionsPage() {
     const res = await apiClient.get('/user-sessions/statistics', { params: { windowMinutes } });
     setStats(res.data);
   }, [windowMinutes]);
+
+  const loadAttempts = useCallback(async () => {
+    const [statsRes, listRes] = await Promise.all([
+      apiClient.get('/user-sessions/login-attempts/statistics'),
+      apiClient.get('/user-sessions/login-attempts', { params: { result: attemptResult, limit: 25 } }),
+    ]);
+    setAttemptStats(statsRes.data);
+    setAttempts(Array.isArray(listRes.data?.rows) ? listRes.data.rows : []);
+  }, [attemptResult]);
 
   const loadSessions = useCallback(async () => {
     const res = await apiClient.get('/user-sessions', {
@@ -209,7 +278,7 @@ export default function UserSessionsPage() {
     if (!canView) return;
     setLoading(true);
     try {
-      await Promise.all([loadStatistics(), loadSessions()]);
+      await Promise.all([loadStatistics(), loadSessions(), loadAttempts()]);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Failed to load sessions.');
     } finally {
@@ -217,12 +286,12 @@ export default function UserSessionsPage() {
     }
     // toast identity is stable enough; re-running on it would loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canView, loadStatistics, loadSessions]);
+  }, [canView, loadStatistics, loadSessions, loadAttempts]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canView, status, deviceType, roleId, userFilter?.id, page, windowMinutes]);
+  }, [canView, status, deviceType, roleId, userFilter?.id, page, windowMinutes, attemptResult]);
 
   const runRevoke = async () => {
     if (!confirm) return;
@@ -231,6 +300,9 @@ export default function UserSessionsPage() {
       if (confirm.kind === 'session') {
         await apiClient.post(`/user-sessions/${confirm.id}/revoke`);
         toast.success(`${confirm.label} signed out.`);
+      } else if (confirm.kind === 'unlock') {
+        await apiClient.post('/user-sessions/login-attempts/unlock', { identifier: confirm.identifier });
+        toast.success(`${confirm.identifier} can sign in again.`);
       } else {
         const res = await apiClient.post(`/user-sessions/users/${confirm.userId}/revoke-all`);
         toast.success(`${confirm.name} signed out of ${res.data?.revoked ?? confirm.count} device(s).`);
@@ -238,7 +310,7 @@ export default function UserSessionsPage() {
       setConfirm(null);
       await load();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to sign the device out.');
+      toast.error(err?.response?.data?.message || 'That action could not be completed.');
     } finally {
       setBusy(false);
     }
@@ -549,6 +621,142 @@ export default function UserSessionsPage() {
           </div>
         </section>
 
+        {/* ------------------------------------------------ login attempts */}
+        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <header className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Sign-in attempts</h2>
+              <p className="text-xs text-gray-500">
+                {attemptStats
+                  ? `${attemptStats.policy.identifier.maxFailures} wrong passwords in ${attemptStats.policy.identifier.windowMinutes} min locks an account for ${attemptStats.policy.identifier.lockMinutes} min; ${attemptStats.policy.ip.maxFailures} from one address locks that address for ${attemptStats.policy.ip.lockMinutes} min.`
+                  : 'Failed and successful sign-ins, and the lockouts they trigger.'}
+              </p>
+            </div>
+            <select
+              value={attemptResult}
+              onChange={(event) => setAttemptResult(event.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              aria-label="Attempt result filter"
+            >
+              <option value="failures">Failures only</option>
+              <option value="success">Successful sign-ins</option>
+              <option value="invalid_password">Wrong password</option>
+              <option value="unknown_account">No such account</option>
+              <option value="all">Everything</option>
+            </select>
+          </header>
+
+          <div className="grid grid-cols-2 gap-3 border-b border-gray-100 p-4 md:grid-cols-3 xl:grid-cols-5">
+            <Tile
+              label="Failed today"
+              value={attemptStats?.totals.failedToday ?? 0}
+              tone={(attemptStats?.totals.failedToday ?? 0) > 0 ? 'warn' : 'good'}
+              hint={`${attemptStats?.totals.failedLastHour ?? 0} in the last hour`}
+            />
+            <Tile
+              label="Locked out now"
+              value={attemptStats?.totals.lockedNow ?? 0}
+              tone={(attemptStats?.totals.lockedNow ?? 0) > 0 ? 'bad' : 'good'}
+              hint="Accounts waiting out a lockout"
+            />
+            <Tile
+              label="Accounts targeted"
+              value={attemptStats?.totals.identifiersFailing24h ?? 0}
+              hint="Distinct identifiers failing, 24h"
+            />
+            <Tile
+              label="Source addresses"
+              value={attemptStats?.totals.ipsFailing24h ?? 0}
+              hint="Distinct IPs failing, 24h"
+            />
+            <Tile
+              label="Failed this week"
+              value={attemptStats?.totals.failedLast7Days ?? 0}
+              hint={`${attemptStats?.totals.successToday ?? 0} successful sign-ins today`}
+            />
+          </div>
+
+          {(attemptStats?.locked?.length ?? 0) > 0 && (
+            <div className="border-b border-gray-100 bg-red-50 px-4 py-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700">
+                Locked out right now
+              </div>
+              <div className="space-y-2">
+                {attemptStats!.locked.map((row) => (
+                  <div key={row.identifier} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
+                    <div>
+                      <span className="font-semibold text-gray-900">{row.identifier}</span>
+                      <span className="ml-2 text-gray-500">
+                        {row.failures} failures · last from {row.ipAddress || 'unknown IP'} · unlocks {formatRelative(row.lockedUntil).replace(' ago', ' from now')}
+                      </span>
+                    </div>
+                    {canRevoke && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirm({ kind: 'unlock', identifier: row.identifier })}
+                        className="rounded-lg border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        Unlock now
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(attemptStats?.topIps?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-2 border-b border-gray-100 px-4 py-3 text-xs">
+              <span className="font-semibold uppercase tracking-wide text-gray-500">Worst addresses, 24h:</span>
+              {attemptStats!.topIps.map((row) => (
+                <span key={row.ipAddress} className="rounded-full border border-gray-200 px-2.5 py-1 font-mono text-gray-700">
+                  {row.ipAddress} — {row.failures} failures on {row.identifiers} account{row.identifiers === 1 ? '' : 's'}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-2 text-left">Identifier</th>
+                  <th className="px-4 py-2 text-left">Result</th>
+                  <th className="px-4 py-2 text-left">IP</th>
+                  <th className="px-4 py-2 text-left">Device</th>
+                  <th className="px-4 py-2 text-left">When</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {attempts.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">
+                      <div className="font-medium text-gray-900">{row.identifier}</div>
+                      {row.userName && <div className="text-xs text-gray-500">{row.userName}</div>}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ATTEMPT_RESULT_STYLES[row.result] || 'bg-gray-100 text-gray-700'}`}>
+                        {ATTEMPT_RESULT_LABELS[row.result] || row.result}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-gray-600">{row.ipAddress || '—'}</td>
+                    <td className="px-4 py-2 text-gray-600">{row.deviceLabel || '—'}</td>
+                    <td className="px-4 py-2">
+                      <div className="text-gray-800">{formatRelative(row.createdAt)}</div>
+                      <div className="text-xs text-gray-500">{formatDateTime(row.createdAt)}</div>
+                    </td>
+                  </tr>
+                ))}
+                {attempts.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                    {loading ? 'Loading attempts...' : 'Nothing recorded for this filter.'}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         {/* -------------------------------------------------- session list */}
         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <header className="border-b border-gray-100 px-4 py-3">
@@ -724,17 +932,29 @@ export default function UserSessionsPage() {
         onClose={() => setConfirm(null)}
         onConfirm={runRevoke}
         loading={busy}
-        type="warning"
-        title={confirm?.kind === 'user' ? 'Sign out every device?' : 'Sign this device out?'}
-        message={
-          confirm?.kind === 'user'
-            ? `${confirm.name} will be signed out of ${confirm.count} device${confirm.count === 1 ? '' : 's'} and will have to log in again.`
-            : confirm
-              ? `${confirm.label} will be signed out and will have to log in again.`
-              : ''
+        type={confirm?.kind === 'unlock' ? 'confirm' : 'warning'}
+        title={
+          confirm?.kind === 'unlock'
+            ? 'Clear this lockout?'
+            : confirm?.kind === 'user'
+              ? 'Sign out every device?'
+              : 'Sign this device out?'
         }
-        warningMessage="Takes effect on that device's next request — usually within seconds."
-        confirmText="Sign out"
+        message={
+          confirm?.kind === 'unlock'
+            ? `${confirm.identifier} will be able to sign in again straight away. The failed attempts behind the lockout stay on the record.`
+            : confirm?.kind === 'user'
+              ? `${confirm.name} will be signed out of ${confirm.count} device${confirm.count === 1 ? '' : 's'} and will have to log in again.`
+              : confirm
+                ? `${confirm.label} will be signed out and will have to log in again.`
+                : ''
+        }
+        warningMessage={
+          confirm?.kind === 'unlock'
+            ? 'Only do this once you know who was trying to sign in.'
+            : "Takes effect on that device's next request — usually within seconds."
+        }
+        confirmText={confirm?.kind === 'unlock' ? 'Unlock' : 'Sign out'}
       />
     </AdminLayout>
   );

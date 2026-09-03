@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { UserSessionsService } from './user-sessions.service';
+import { LoginAttemptsService } from './login-attempts.service';
 
 /**
  * Admin view of every login: which accounts are signed in, on what devices,
@@ -16,7 +17,10 @@ import { UserSessionsService } from './user-sessions.service';
 @Controller('user-sessions')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UserSessionsController {
-  constructor(private readonly service: UserSessionsService) {}
+  constructor(
+    private readonly service: UserSessionsService,
+    private readonly loginAttempts: LoginAttemptsService,
+  ) {}
 
   @Get()
   @RequirePermissions('view-user-sessions')
@@ -54,6 +58,37 @@ export class UserSessionsController {
   @RequirePermissions('view-user-sessions')
   forUser(@Param('userId', ParseIntPipe) userId: number, @Query('status') status?: string) {
     return this.service.listForSubject('user', userId, status || 'active');
+  }
+
+  /** Failed and successful sign-in attempts. Defaults to failures only. */
+  @Get('login-attempts')
+  @RequirePermissions('view-user-sessions')
+  loginAttemptList(
+    @Query('result') result?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.loginAttempts.list({
+      result,
+      q,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  /** Counters, currently locked identifiers and the worst offending addresses. */
+  @Get('login-attempts/statistics')
+  @RequirePermissions('view-user-sessions')
+  loginAttemptStatistics() {
+    return this.loginAttempts.statistics();
+  }
+
+  /** Let someone back in before their lockout expires. */
+  @Post('login-attempts/unlock')
+  @RequirePermissions('revoke-user-sessions')
+  unlockIdentifier(@Body() body: { identifier: string }, @Req() req: any) {
+    return this.loginAttempts.unlock(body?.identifier, Number(req.user?.id) || null);
   }
 
   @Post(':id/revoke')

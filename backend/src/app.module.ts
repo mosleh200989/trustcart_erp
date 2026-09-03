@@ -208,6 +208,7 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { IssuesModule } from './modules/issues/issues.module';
 import { UserSessionsModule } from './modules/user-sessions/user-sessions.module';
 import { UserSession } from './modules/user-sessions/entities/user-session.entity';
+import { LoginAttempt } from './modules/user-sessions/entities/login-attempt.entity';
 import { Issue } from './modules/issues/entities/issue.entity';
 import { IssueComment } from './modules/issues/entities/issue-comment.entity';
 import { IssueAttachment } from './modules/issues/entities/issue-attachment.entity';
@@ -412,8 +413,8 @@ import { AutomationModule } from './modules/automation/automation.module';
             AutomationHistoryMessage,
             // Issues
             Issue, IssueComment, IssueAttachment, IssueEvent,
-            // Login sessions (devices)
-            UserSession,
+            // Login sessions (devices) and sign-in attempts
+            UserSession, LoginAttempt,
           ],
           synchronize: false,
           logging: configService.get<string>('NODE_ENV') === 'development',
