@@ -468,6 +468,12 @@ const menuItems: MenuItem[] = [
         path: '/admin/users/sessions',
         requiredPermissions: ['view-user-sessions', 'revoke-user-sessions'],
       },
+      {
+        title: 'Data Access',
+        icon: FaHistory,
+        path: '/admin/users/data-access',
+        requiredPermissions: ['view-data-access-log'],
+      },
     ],
   },
   {

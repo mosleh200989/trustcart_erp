@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { FaFileExport, FaTags, FaTrash, FaSms, FaEnvelope, FaPlus, FaEye } from 'react-icons/fa';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
@@ -32,6 +33,8 @@ interface Customer {
 
 export default function CustomersPage() {
   const toast = useToast();
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission('export-customers');
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,7 @@ export default function CustomersPage() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -140,32 +144,44 @@ export default function CustomersPage() {
     }
   };
 
-  const handleExport = () => {
-    const dataToExport = selectedCustomers.length > 0
-      ? customers.filter(c => selectedCustomers.includes(c.id))
-      : displayedCustomers;
+  /**
+   * The CSV comes from the server now. It used to be assembled here from rows
+   * already in the browser, which meant no permission was needed and no record
+   * was kept of who downloaded the customer base. The endpoint requires
+   * export-customers and logs the download with its filters and row count.
+   */
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params: any = {};
+      if (selectedCustomers.length > 0) {
+        params.ids = selectedCustomers.join(',');
+      } else {
+        if (tierFilter) params.tier = tierFilter;
+        if (agentFilter) params.agentId = agentFilter;
+        if (tlFilter) params.teamLeaderId = tlFilter;
+        if (searchDebounced) params.search = searchDebounced;
+      }
 
-    const csv = [
-      ['ID', 'Name', 'Email', 'Phone', 'Company', 'Tier', 'Total Orders', 'Total Spent'].join(','),
-      ...dataToExport.map(c => [
-        c.id,
-        `${c.name} ${c.lastName}`,
-        c.email,
-        c.phone,
-        c.company || '',
-        c.tier || '',
-        c.totalOrders || 0,
-        c.totalSpent || 0
-      ].join(','))
-    ].join('\n');
+      const res = await apiClient.get('/customers/export/csv', { params, responseType: 'blob' });
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `customers-${getDhakaDateString()}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `customers-${getDhakaDateString()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.status === 403
+          ? 'You do not have permission to export customers. Ask an administrator for the Export Customers permission.'
+          : 'Export failed. Please try again.',
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleBulkTag = async () => {
@@ -281,12 +297,15 @@ export default function CustomersPage() {
           <div className="flex gap-2">
             {selectedCustomers.length > 0 && (
               <>
-                <button
-                  onClick={handleExport}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-                >
-                  <FaFileExport /> Export ({selectedCustomers.length})
-                </button>
+                {canExport && (
+                  <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-60 flex items-center gap-2"
+                  >
+                    <FaFileExport /> {exporting ? 'Exporting...' : `Export (${selectedCustomers.length})`}
+                  </button>
+                )}
                 <button
                   onClick={handleBulkTag}
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
@@ -301,12 +320,16 @@ export default function CustomersPage() {
                 </button>
               </>
             )}
-            <button
-              onClick={handleExport}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
-            >
-              <FaFileExport /> Export All
-            </button>
+            {canExport && (
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                title="Downloads the customers matching the current filters. Every export is recorded."
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-60 flex items-center gap-2"
+              >
+                <FaFileExport /> {exporting ? 'Exporting...' : 'Export All'}
+              </button>
+            )}
             <button
               onClick={() => router.push('/admin/customers/new')}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -387,10 +410,15 @@ export default function CustomersPage() {
               </span>
             )}
             <div className={selectedCustomers.length === 0 ? 'ml-auto' : ''}>
+              {/* Capped at the server's maximum page size: asking for more
+                  would return 500 rows while the pager stepped by the larger
+                  number, quietly skipping customers between pages. */}
               <PageSizeSelector
                 value={itemsPerPage}
+                options={[30, 50, 100, 200, 500]}
+                max={500}
                 onChange={(size) => {
-                  setItemsPerPage(size);
+                  setItemsPerPage(Math.min(500, size));
                   setCurrentPage(1);
                 }}
               />

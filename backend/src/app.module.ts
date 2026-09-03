@@ -209,6 +209,8 @@ import { IssuesModule } from './modules/issues/issues.module';
 import { UserSessionsModule } from './modules/user-sessions/user-sessions.module';
 import { UserSession } from './modules/user-sessions/entities/user-session.entity';
 import { LoginAttempt } from './modules/user-sessions/entities/login-attempt.entity';
+import { DataAccessModule } from './modules/data-access/data-access.module';
+import { DataAccessLog } from './modules/data-access/entities/data-access-log.entity';
 import { Issue } from './modules/issues/entities/issue.entity';
 import { IssueComment } from './modules/issues/entities/issue-comment.entity';
 import { IssueAttachment } from './modules/issues/entities/issue-attachment.entity';
@@ -415,6 +417,8 @@ import { AutomationModule } from './modules/automation/automation.module';
             Issue, IssueComment, IssueAttachment, IssueEvent,
             // Login sessions (devices) and sign-in attempts
             UserSession, LoginAttempt,
+            // Sensitive-data read log
+            DataAccessLog,
           ],
           synchronize: false,
           logging: configService.get<string>('NODE_ENV') === 'development',
@@ -482,6 +486,7 @@ import { AutomationModule } from './modules/automation/automation.module';
     AutomationModule,
     IssuesModule,
     UserSessionsModule,
+    DataAccessModule,
   ],
   controllers: [],
   providers: [],

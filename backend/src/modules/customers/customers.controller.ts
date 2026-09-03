@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, BadRequestException, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, BadRequestException, UseGuards, Query, Request, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { LogDataAccess } from '../../common/decorators/data-access.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('customers')
@@ -44,8 +46,33 @@ export class CustomersController {
     }
   }
 
+  /**
+   * The page size a caller may ask for.
+   *
+   * `limit` used to reach TypeORM untouched, so `?limit=95000` returned every
+   * customer in the database — with phone numbers — in a single request that
+   * nothing recorded. 500 covers the largest page any screen actually asks for
+   * (admin/customers requests 500) while making a full harvest ~190 separate
+   * requests, each one a row in the data access log. Bulk work goes through the
+   * export endpoint below, which is permissioned and counted.
+   */
+  private static readonly MAX_PAGE_SIZE = 500;
+
+  /** Bounded page numbers too: a negative page produced a negative OFFSET. */
+  private pagination(page?: string, limit?: string) {
+    const requested = limit ? parseInt(limit, 10) : 10;
+    return {
+      page: Math.max(1, page ? parseInt(page, 10) || 1 : 1),
+      limit: Math.min(
+        CustomersController.MAX_PAGE_SIZE,
+        Math.max(1, Number.isFinite(requested) ? requested : 10),
+      ),
+    };
+  }
+
   @Get()
   @RequirePermissions('view-customers')
+  @LogDataAccess({ resource: 'customers', action: 'list' })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -55,8 +82,7 @@ export class CustomersController {
     @Query('teamLeaderId') teamLeaderId?: string,
     @Query('landingPageSlug') landingPageSlug?: string,
   ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
+    const { page: pageNum, limit: limitNum } = this.pagination(page, limit);
     return this.customersService.findAllPaginated({
       page: pageNum,
       limit: limitNum,
@@ -68,8 +94,51 @@ export class CustomersController {
     });
   }
 
+  /**
+   * Bulk download, as a governed action rather than a browser trick.
+   *
+   * The CRM page used to build this CSV client-side from rows it had already
+   * fetched, so the server saw nothing: no permission, no record, no limit.
+   * Now it needs export-customers — granted per role from the Role Permissions
+   * page — and every download lands in the data access log with the filters
+   * used and the row count.
+   */
+  @Get('export/csv')
+  @RequirePermissions('export-customers')
+  @LogDataAccess({ resource: 'customers', action: 'export' })
+  async exportCsv(
+    @Res({ passthrough: true }) res: Response,
+    @Query('search') search?: string,
+    @Query('tier') tier?: string,
+    @Query('agentId') agentId?: string,
+    @Query('teamLeaderId') teamLeaderId?: string,
+    @Query('landingPageSlug') landingPageSlug?: string,
+    @Query('ids') ids?: string,
+  ) {
+    const csv = await this.customersService.exportCsv({
+      search,
+      tier,
+      agentId: agentId === 'unassigned' ? 'unassigned' : (agentId ? parseInt(agentId, 10) : undefined),
+      teamLeaderId:
+        teamLeaderId === 'unassigned' ? 'unassigned' : (teamLeaderId ? parseInt(teamLeaderId, 10) : undefined),
+      landingPageSlug,
+      ids: ids
+        ? String(ids)
+            .split(',')
+            .map((value) => parseInt(value, 10))
+            .filter((value) => Number.isFinite(value))
+        : undefined,
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="customers-${stamp}.csv"`);
+    return csv;
+  }
+
   @Get(':id')
   @RequirePermissions('view-customers')
+  @LogDataAccess({ resource: 'customers', action: 'view', idParam: 'id' })
   async findOne(@Param('id') id: string) {
     return this.customersService.findOne(id);
   }
