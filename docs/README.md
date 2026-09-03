@@ -42,7 +42,8 @@ How each part of the product behaves.
 [RBAC](modules/rbac.md) ·
 [RBAC panels and roles](modules/rbac-panels-and-roles.md) ·
 [permissions checklist](modules/permissions-checklist.md) ·
-[device sessions](modules/user-sessions.md)
+[device sessions](modules/user-sessions.md) ·
+[data access](modules/data-access.md)
 
 **Storefront**
 [homepage](modules/homepage.md) ·

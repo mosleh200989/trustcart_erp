@@ -8,6 +8,38 @@ One backend serves several brand storefronts — trustcart.com.bd, herbolin.com,
 veshoj.site, kasrioil.com, naturalglowra.com and others — from a single
 database.
 
+## How it fits together
+
+```mermaid
+flowchart TB
+    subgraph brands["Brand storefronts"]
+        direction LR
+        B1["trustcart.com.bd"]
+        B2["herbolin.com"]
+        B3["veshoj.site"]
+        B4["kasrioil.com"]
+        B5["naturalglowra.com"]
+    end
+
+    FE["Next.js 14 · 256 pages<br/>storefront and admin panel"]
+    API["NestJS 10 · 41 modules<br/>orders · CRM · call centre · inventory<br/>HR · payroll · accounting<br/>JWT via Passport · Swagger at /api/docs"]
+
+    PG[("PostgreSQL 18<br/>166 entities<br/>145 migrations")]
+    RD[("Redis + Bull<br/>job queues")]
+    WS(["Socket.IO<br/>realtime"])
+    BK["Nightly backup 02:30 Dhaka<br/>14-day retention"]
+
+    brands --> FE --> API
+    API --> PG
+    API --> RD
+    API --> WS
+    PG -.-> BK
+```
+
+Every storefront above is served by the same backend and the same database; a brand is a
+row, not a deployment. All of it runs on a single Ubuntu VPS behind nginx, with pm2 keeping
+the processes up.
+
 ## Operations — start here
 
 The things you will need and will not remember:

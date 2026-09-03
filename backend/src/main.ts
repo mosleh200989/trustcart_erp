@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { AuditInterceptor } from './modules/audit-log/audit.interceptor';
 import { AuditLogService } from './modules/audit-log/audit-log.service';
 import { assertJwtSecretConfigured } from './common/jwt-secret';
+import { DataAccessInterceptor } from './modules/data-access/data-access.interceptor';
 import { join } from 'path';
 import * as fs from 'fs';
 
@@ -37,6 +38,11 @@ async function bootstrap() {
   // Register global audit interceptor
   const auditLogService = app.get(AuditLogService);
   app.useGlobalInterceptors(new AuditInterceptor(auditLogService));
+
+  // Reads of sensitive data. The audit interceptor above only covers mutations,
+  // so without this nothing records that someone looked at 95,000 customers.
+  // Inert unless a handler carries @LogDataAccess.
+  app.useGlobalInterceptors(app.get(DataAccessInterceptor));
 
   // CORS allowed origins — all domains served by this backend
   const APP_DOMAINS = [

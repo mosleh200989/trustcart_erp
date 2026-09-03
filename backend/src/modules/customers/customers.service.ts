@@ -396,8 +396,10 @@ export class CustomersService {
     agentId?: number | 'unassigned';
     teamLeaderId?: number | 'unassigned';
     landingPageSlug?: string;
+    /** Restrict to specific customers — the rows an operator ticked before exporting. */
+    ids?: number[];
   }) {
-    const { page = 1, limit = 10, search, tier, agentId, teamLeaderId, landingPageSlug } = options;
+    const { page = 1, limit = 10, search, tier, agentId, teamLeaderId, landingPageSlug, ids } = options;
     const skip = (page - 1) * limit;
 
     const qb = this.customersRepository.createQueryBuilder('c')
@@ -466,6 +468,10 @@ export class CustomersService {
       );
     }
 
+    if (ids && ids.length > 0) {
+      qb.andWhere('c.id = ANY(:ids)', { ids });
+    }
+
     if (tier) {
       qb.andWhere('ct.tier = :tier', { tier });
     }
@@ -502,6 +508,10 @@ export class CustomersService {
       .where('c.is_deleted = :deleted', { deleted: false })
       .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected')`)
       .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+
+    if (ids && ids.length > 0) {
+      countQb.andWhere('c.id = ANY(:ids)', { ids });
+    }
 
     if (tier) {
       countQb.innerJoin('customer_tiers', 'ct', 'ct.customer_id = c.id AND ct.tier = :tier', { tier });
@@ -561,6 +571,56 @@ export class CustomersService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /**
+   * CSV for the export endpoint, using exactly the filters the operator had on
+   * screen. Capped: a download is a governed action, not an unbounded one, and
+   * 20,000 rows is far past any real reporting need while stopping a single
+   * click from serialising the whole customer base into one file.
+   */
+  async exportCsv(filters: {
+    search?: string;
+    tier?: string;
+    agentId?: number | 'unassigned';
+    teamLeaderId?: number | 'unassigned';
+    landingPageSlug?: string;
+    ids?: number[];
+  }): Promise<string> {
+    const EXPORT_ROW_CAP = 20000;
+
+    const { items } = await this.findAllPaginated({ ...filters, page: 1, limit: EXPORT_ROW_CAP });
+
+    const columns: Array<[string, (row: any) => any]> = [
+      ['ID', (row) => row.id],
+      ['Name', (row) => row.name],
+      ['Email', (row) => row.email],
+      ['Phone', (row) => row.phone],
+      ['Company', (row) => row.company],
+      ['City', (row) => row.city],
+      ['Tier', (row) => row.tier],
+      ['Agent', (row) => row.agentName],
+      ['Team Leader', (row) => row.teamLeaderName],
+      ['Total Orders', (row) => row.totalOrders],
+      ['Total Spent', (row) => row.totalSpent],
+      ['Created', (row) => (row.createdAt ? new Date(row.createdAt).toISOString().slice(0, 10) : '')],
+    ];
+
+    const escape = (value: any) => {
+      const text = value == null ? '' : String(value);
+      // A leading =, +, - or @ turns a cell into a formula when the file is
+      // opened in Excel; prefix it so exported data stays data.
+      const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+
+    const lines = [
+      columns.map(([header]) => escape(header)).join(','),
+      ...items.map((row: any) => columns.map(([, read]) => escape(read(row))).join(',')),
+    ];
+
+    // BOM so Excel reads the Bangla names in these records as UTF-8.
+    return `﻿${lines.join('\n')}\n`;
   }
 
   async findOne(id: string) {
