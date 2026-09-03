@@ -154,19 +154,22 @@ const menuItems: MenuItem[] = [
       },
     ],
   },
-  {
-    title: 'Loyalty',
-    icon: FaGift,
-    requiredPermissions: ['view-mlm-reports', 'manage-mlm-settings'],
-    children: [
-      { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/loyalty' },
-      { title: 'Members', icon: FaUsers, path: '/admin/loyalty/members' },
-      { title: 'Referrals', icon: FaGift, path: '/admin/loyalty/referrals' },
-      { title: 'Campaigns', icon: FaBullseye, path: '/admin/loyalty/referrals/campaigns' },
-      { title: 'Partners', icon: FaHandshake, path: '/admin/loyalty/referrals/partners' },
-      { title: 'Subscriptions', icon: FaShoppingCart, path: '/admin/loyalty/subscriptions' },
-    ],
-  },
+  // Loyalty is hidden from the sidebar (2026-09-03). The pages under
+  // /admin/loyalty still exist and their APIs still enforce their own
+  // permissions; only the navigation entry is gone.
+  // {
+  //   title: 'Loyalty',
+  //   icon: FaGift,
+  //   requiredPermissions: ['view-mlm-reports', 'manage-mlm-settings'],
+  //   children: [
+  //     { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/loyalty' },
+  //     { title: 'Members', icon: FaUsers, path: '/admin/loyalty/members' },
+  //     { title: 'Referrals', icon: FaGift, path: '/admin/loyalty/referrals' },
+  //     { title: 'Campaigns', icon: FaBullseye, path: '/admin/loyalty/referrals/campaigns' },
+  //     { title: 'Partners', icon: FaHandshake, path: '/admin/loyalty/referrals/partners' },
+  //     { title: 'Subscriptions', icon: FaShoppingCart, path: '/admin/loyalty/subscriptions' },
+  //   ],
+  // },
   {
     title: 'Tagging',
     icon: FaTags,
@@ -347,20 +350,22 @@ const menuItems: MenuItem[] = [
       },
     ],
   },
-  {
-    title: 'Accounting',
-    icon: FaBook,
-    requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices', 'view-dollar-consumption', 'manage-dollar-consumption'],
-    children: [
-      { title: 'Overview', icon: FaBook, path: '/admin/accounting', requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices'] },
-      { title: 'Dollar Consumption', icon: FaCalculator, path: '/admin/accounting/dollar-consumption', requiredPermissions: ['view-dollar-consumption', 'manage-dollar-consumption'] },
-    ],
-  },
-  {
-    title: 'Projects',
-    icon: FaBullseye,
-    path: '/admin/projects'
-  },
+  // Accounting and Projects are hidden from the sidebar (2026-09-03), like
+  // Loyalty above and Tasks below. The pages remain; only the links are gone.
+  // {
+  //   title: 'Accounting',
+  //   icon: FaBook,
+  //   requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices', 'view-dollar-consumption', 'manage-dollar-consumption'],
+  //   children: [
+  //     { title: 'Overview', icon: FaBook, path: '/admin/accounting', requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices'] },
+  //     { title: 'Dollar Consumption', icon: FaCalculator, path: '/admin/accounting/dollar-consumption', requiredPermissions: ['view-dollar-consumption', 'manage-dollar-consumption'] },
+  //   ],
+  // },
+  // {
+  //   title: 'Projects',
+  //   icon: FaBullseye,
+  //   path: '/admin/projects'
+  // },
   // {
   //   title: 'Tasks',
   //   icon: FaBullseye,

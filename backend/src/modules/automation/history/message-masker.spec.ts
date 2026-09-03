@@ -114,3 +114,21 @@ describe('isUsableExample', () => {
     expect(isUsableExample(result)).toBe(false);
   });
 });
+
+describe('maskMessage — formatting around a figure', () => {
+  it('catches a price wrapped in Messenger bold', () => {
+    // Real leak from the imported corpus: "*990* টাকা" survived because the
+    // asterisk sat between the digits and the currency word.
+    const result = maskMessage('প্রিমিয়াম অয়েল রেগুলার প্রাইস: *990* টাকা।');
+    expect(result.text).not.toContain('990');
+    expect(result.counts.PRICE).toBe(1);
+  });
+
+  it.each([
+    ['*850* tk', '[PRICE]'],
+    ['_990_ taka', '[PRICE]'],
+    ['~1200~ BDT', '[PRICE]'],
+  ])('catches %s', (input, expected) => {
+    expect(maskMessage(input).text).toBe(expected);
+  });
+});
