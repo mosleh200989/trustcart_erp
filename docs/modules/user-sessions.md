@@ -1,4 +1,4 @@
-# Device Sessions (login sessions)
+# Device Sessions and sign-in attempts
 
 Which devices every account is signed in on, and the ability to sign any of
 them out immediately. Lives in the **Users** module:
@@ -13,6 +13,8 @@ changing how tokens are issued or how long they last.
 | Piece | Where |
 |---|---|
 | Session row per login | `user_sessions` table (`db/migrations/2026-09-03-user-sessions.sql`) |
+| Attempt row per sign-in try | `login_attempts` table (`db/migrations/2026-09-04-login-attempts.sql`) |
+| Rate limit policy and lockouts | `login-throttle-policy.ts`, `login-attempts.service.ts` |
 | `sid` claim linking token -> session | `AuthService.issueToken()` |
 | Per-request validation + `last_seen_at` | `AuthService.validateJwtPayload()` -> `UserSessionsService.touch()` |
 | Device parsing from the user agent | `backend/src/modules/user-sessions/device-info.ts` |
@@ -59,6 +61,49 @@ counting only active sessions:
 
 "Online" means a request within `windowMinutes` (default 15).
 
+## Rate limiting and the attempt record
+
+`POST /api/auth/login` used to accept unlimited attempts and record none of
+them — the audit interceptor skips the login route, and nothing else logged it.
+Now every attempt writes a `login_attempts` row (identifier as typed, result,
+IP, device, user agent) and the throttle reads those rows back.
+
+`AuthService.login()` wraps the real login so every exit is counted exactly
+once, whichever identity path inside it took: `success`, `invalid_password`,
+`unknown_account`, `inactive`, or `unlocked` when an admin clears a lockout.
+The client always sees a flat "Invalid credentials" — the distinction is only
+in the record.
+
+**The policy** lives in `login-throttle-policy.ts`, pure and unit-tested:
+
+| Scope | Limit | Window | Lock |
+|---|---|---|---|
+| Identifier | 5 failures | 15 min | 15 min |
+| IP address | 30 failures | 15 min | 5 min |
+
+Deliberately lopsided. The identifier limit is the real defence. The IP limit is
+loose and short because all staff sit behind one office NAT — production shows
+two distinct addresses for the whole company — so a strict IP rule would lock
+out everyone the moment one attacker crossed it. Spraying across many accounts
+from one source is meant to be *seen* (the failed-attempt list and "worst
+addresses" panel) rather than auto-blocked.
+
+Two details that matter:
+
+- **Failures count only since the last success or admin unlock.** Four typos, a
+  successful sign-in, then four more typos does not lock anyone out.
+- **The lockout keys on the identifier as typed**, never on a resolved account,
+  so being locked out reveals nothing about whether the account exists. Emails
+  keep every character (only case is folded); phone punctuation is folded so
+  `01712-345678` and `01712345678` cannot be alternated to double the allowance.
+
+A blocked attempt returns `429` with `code: LOGIN_THROTTLED` and a message
+naming the wait. An admin with `revoke-user-sessions` can clear a lockout from
+the page — that writes an `unlocked` row rather than deleting the failures, so
+the evidence survives.
+
+Attempts are pruned after 180 days.
+
 ## Permissions
 
 Both appear on the **Role Permissions** page under the `user-sessions` module
@@ -66,8 +111,8 @@ and are granted from there:
 
 | Slug | Grants |
 |---|---|
-| `view-user-sessions` | See the page: every account's devices and all statistics |
-| `revoke-user-sessions` | Sign a device out, or sign an account out everywhere |
+| `view-user-sessions` | See the page: every account's devices, sign-in attempts and all statistics |
+| `revoke-user-sessions` | Sign a device out, sign an account out everywhere, clear a lockout |
 
 `super-admin` and `admin` pass every permission check in `PermissionsGuard`
 regardless, so they always have both — the migration records the grants anyway

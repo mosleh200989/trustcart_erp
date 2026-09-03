@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
@@ -6,6 +6,7 @@ import { Customer } from '../customers/customer.entity';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { UserSessionsService } from '../user-sessions/user-sessions.service';
+import { LoginAttemptsService, LoginResult } from '../user-sessions/login-attempts.service';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,7 @@ export class AuthService {
     @InjectRepository(Customer)
     private customersRepository: Repository<Customer>,
     private userSessions: UserSessionsService,
+    private loginAttempts: LoginAttemptsService,
   ) {}
 
   /**
@@ -84,10 +86,55 @@ export class AuthService {
     return [...new Set(variants)]; // Remove duplicates
   }
 
+  /**
+   * Tag a credential failure so the wrapper below can record *why* it failed
+   * without the caller ever learning the difference — every one of these still
+   * reaches the client as a flat "Invalid credentials".
+   */
+  private credentialError(result: LoginResult, message = 'Invalid credentials') {
+    const error: any = new UnauthorizedException(message);
+    error.loginResult = result;
+    return error;
+  }
+
+  /**
+   * Rate limiting and the attempt record wrap the real login, so every exit —
+   * unknown account, wrong password, inactive, success — is counted exactly
+   * once, whichever of the identity paths inside took it.
+   */
   async login(identifier: string, password: string, request?: any) {
+    const decision = await this.loginAttempts.check(identifier, request);
+    if (decision.blocked) {
+      throw new HttpException(
+        { statusCode: 429, message: this.loginAttempts.message(decision), code: 'LOGIN_THROTTLED' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    try {
+      const outcome = await this.performLogin(identifier, password, request);
+      await this.loginAttempts.record({
+        identifier,
+        result: 'success',
+        request,
+        userId: outcome?.user?.roleSlug === 'customer-account' ? null : Number(outcome?.user?.id) || null,
+        subjectType: outcome?.user?.roleSlug === 'customer-account' ? 'customer' : 'user',
+      });
+      return outcome;
+    } catch (error: any) {
+      await this.loginAttempts.record({
+        identifier,
+        result: (error?.loginResult as LoginResult) || 'invalid_password',
+        request,
+      });
+      throw error;
+    }
+  }
+
+  private async performLogin(identifier: string, password: string, request?: any) {
     const loginValue = (identifier || '').toString().trim();
     if (!loginValue) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw this.credentialError('unknown_account');
     }
 
     const looksLikeEmail = loginValue.includes('@');
@@ -127,14 +174,14 @@ export class AuthService {
       }
 
       if (customer && (customer as any).is_deleted) {
-        throw new UnauthorizedException('Account is inactive');
+        throw this.credentialError('inactive', 'Account is inactive');
       }
-      
+
       if (customer && customer.password) {
         // Verify customer password
         const isValid = await bcrypt.compare(password, customer.password);
         if (!isValid) {
-          throw new UnauthorizedException('Invalid credentials');
+          throw this.credentialError('invalid_password');
         }
 
         // Generate token for customer
@@ -236,21 +283,21 @@ export class AuthService {
         };
       }
       
-      throw new UnauthorizedException('Invalid credentials');
+      throw this.credentialError('unknown_account');
     }
 
     if ((user as any).isDeleted || user.status !== 'active') {
-      throw new UnauthorizedException('Account is inactive');
+      throw this.credentialError('inactive', 'Account is inactive');
     }
 
     if (!user.password) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw this.credentialError('invalid_password');
     }
 
     // Verify password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw this.credentialError('invalid_password');
     }
 
     // Fetch primary role information for this user
