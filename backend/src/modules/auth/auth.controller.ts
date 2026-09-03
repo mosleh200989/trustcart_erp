@@ -11,14 +11,22 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  async login(@Body() body: any) {
+  async login(@Body() body: any, @Request() req: any) {
     const identifier = body.identifier ?? body.email ?? body.phone;
-    return this.authService.login(identifier, body.password);
+    // The request carries the device and IP recorded on the login session.
+    return this.authService.login(identifier, body.password, req);
   }
 
   @Post('register')
-  async register(@Body() body: any) {
-    return this.authService.register(body);
+  async register(@Body() body: any, @Request() req: any) {
+    return this.authService.register(body, req);
+  }
+
+  /** Ends this device's session so it stops counting as signed in. */
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  async logout(@Request() req: any) {
+    return this.authService.logout(req.user?.sessionKey);
   }
 
   @Post('validate')
