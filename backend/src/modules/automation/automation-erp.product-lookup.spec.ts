@@ -21,13 +21,34 @@ type QueryRecorder = {
   andWhere: jest.Mock;
   take: jest.Mock;
   getMany: jest.Mock;
+  addSelect: jest.Mock;
+  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
   captured: Array<{ clause: string; params: any }>;
+  selectCalls: Array<{ expression: string; alias: string }>;
+  orderCalls: Array<{ expression: string; direction?: string }>;
 };
 
 function makeQueryBuilder(rows: Partial<Product>[]): QueryRecorder {
   const captured: Array<{ clause: string; params: any }> = [];
+  const selectCalls: Array<{ expression: string; alias: string }> = [];
+  const orderCalls: Array<{ expression: string; direction?: string }> = [];
   const builder: any = {
     captured,
+    selectCalls,
+    orderCalls,
+    addSelect: jest.fn((expression: string, alias: string) => {
+      selectCalls.push({ expression, alias });
+      return builder;
+    }),
+    orderBy: jest.fn((expression: string, direction?: string) => {
+      orderCalls.push({ expression, direction });
+      return builder;
+    }),
+    addOrderBy: jest.fn((expression: string, direction?: string) => {
+      orderCalls.push({ expression, direction });
+      return builder;
+    }),
     where: jest.fn((clause: string, params: any) => {
       captured.push({ clause, params });
       return builder;
@@ -175,5 +196,53 @@ describe('AutomationErpService.findProducts', () => {
 
     const idClause = builder.captured.find((entry) => entry.clause.includes('p.id IN'));
     expect(idClause!.params.ids).toEqual([7, 9]);
+  });
+});
+
+/**
+ * Ranking, added after a shadow-mode draft quoted the wrong product.
+ *
+ * A real customer asked "kasri oil er dam koto" and was told the price of a
+ * coconut oil trial pack. The match clause is an OR across every token, so
+ * anything with "oil" in its name qualified, and nothing ordered the result —
+ * the rule template quotes products[0] and there was no products[0] worth
+ * trusting.
+ */
+describe('AutomationErpService.findProducts — ranking', () => {
+  function orderClauses(builder: QueryRecorder): string {
+    return JSON.stringify((builder as any).orderCalls ?? []);
+  }
+
+  it('orders by how many of the question’s words the name matches', async () => {
+    const { service, builder } = makeService({});
+
+    await service.findProducts('kasri oil er dam koto');
+
+    const scored = (builder as any).selectCalls.find((c: any) =>
+      String(c.expression).includes('CASE WHEN'),
+    );
+    expect(scored).toBeDefined();
+    // Two searchable tokens survive the stop-word list: kasri, oil.
+    expect(String(scored.expression).match(/CASE WHEN/g)).toHaveLength(2);
+    expect(scored.alias).toBe('match_score');
+    expect(orderClauses(builder)).toContain('match_score');
+  });
+
+  it('breaks a tie on the shorter name, so the plain product wins', async () => {
+    // "Kasri Oil" answers "kasri oil" better than
+    // "Kasri oil (1 piece) + hot water bag + joint guard" does.
+    const { service, builder } = makeService({});
+
+    await service.findProducts('kasri oil');
+
+    expect(orderClauses(builder)).toContain('length');
+  });
+
+  it('still ranks when a single word is searched', async () => {
+    const { service, builder } = makeService({});
+
+    await service.findProducts('gastro');
+
+    expect(orderClauses(builder)).toContain('match_score');
   });
 });

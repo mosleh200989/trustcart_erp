@@ -178,3 +178,63 @@ describe('FacebookEventService.normalize', () => {
     expect(events).toEqual([]);
   });
 });
+
+/**
+ * The per-thread cap, after a shadow watch fell silent.
+ *
+ * Five events on a real conversation were skipped as `rate_limited` while the
+ * channel was in shadow — the cap counted held drafts, so the watch stopped
+ * producing the very thing it exists to produce. The cap protects customers
+ * from a misbehaving rule; a draft nobody has seen has no customer to protect.
+ */
+describe('FacebookEventService — the auto-reply cap', () => {
+  function makeService(limitCount: number) {
+    const builder: any = {
+      clauses: [] as string[],
+      where: jest.fn(function (this: any, c: string) {
+        builder.clauses.push(c);
+        return builder;
+      }),
+      andWhere: jest.fn((c: string) => {
+        builder.clauses.push(c);
+        return builder;
+      }),
+      getCount: jest.fn(async () => limitCount),
+    };
+
+    // Only messageRepository is touched, so the service is built without
+    // standing up its other nine dependencies.
+    const service: any = Object.create(FacebookEventService.prototype);
+    service.messageRepository = { createQueryBuilder: () => builder };
+    service.logger = { warn: jest.fn(), debug: jest.fn() };
+
+    return { service, builder };
+  }
+
+  const channel = (limit: number) => ({ max_replies_per_thread_hour: limit }) as any;
+  const conversation = { id: 1 } as any;
+
+  it('excludes held shadow drafts from the count', async () => {
+    const { service, builder } = makeService(0);
+
+    await service.isRateLimited(channel(3), conversation);
+
+    expect(builder.clauses).toContain('m.shadow = false');
+  });
+
+  it('still caps replies that actually went out', async () => {
+    const { service } = makeService(3);
+    expect(await service.isRateLimited(channel(3), conversation)).toBe(true);
+  });
+
+  it('allows a reply below the cap', async () => {
+    const { service } = makeService(2);
+    expect(await service.isRateLimited(channel(3), conversation)).toBe(false);
+  });
+
+  it('treats a cap of zero as no cap, without querying', async () => {
+    const { service, builder } = makeService(99);
+    expect(await service.isRateLimited(channel(0), conversation)).toBe(false);
+    expect(builder.getCount).not.toHaveBeenCalled();
+  });
+});
