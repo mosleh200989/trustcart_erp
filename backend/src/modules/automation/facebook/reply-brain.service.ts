@@ -10,6 +10,7 @@ import {
 import { AutomationSettingsService } from '../automation-settings.service';
 import { AutomationErpService, ErpContext } from '../automation-erp.service';
 import { AutomationAiService, AiTurn } from '../automation-ai.service';
+import { AutomationFaqService } from '../automation-faq.service';
 
 export type ReplyDecision = {
   action: 'reply' | 'escalate' | 'ignore';
@@ -17,6 +18,8 @@ export type ReplyDecision = {
   privateText: string | null;
   source: AutomationReplySource | null;
   ruleId: number | null;
+  /** The FAQ that answered, when the answer came from the FAQ layer. */
+  faqId: number | null;
   confidence: number | null;
   /** Internal explanation, shown in the panel — never sent to the customer. */
   reason: string;
@@ -32,6 +35,7 @@ function ignore(reason: string): ReplyDecision {
     privateText: null,
     source: null,
     ruleId: null,
+    faqId: null,
     confidence: null,
     reason,
     aiModel: null,
@@ -47,6 +51,7 @@ function escalate(reason: string, erp: ErpContext | null = null): ReplyDecision 
     privateText: null,
     source: null,
     ruleId: null,
+    faqId: null,
     confidence: null,
     reason,
     aiModel: null,
@@ -56,12 +61,13 @@ function escalate(reason: string, erp: ErpContext | null = null): ReplyDecision 
 }
 
 /**
- * Decides what to say, in four layers, cheapest first:
+ * Decides what to say, in five layers, cheapest first:
  *
  *   1. escalation checks — complaints, refunds, order numbers: hand to a human
  *   2. keyword rules     — the top ~20 questions, free and instant
- *   3. ERP placeholders  — real prices and stock filled into a rule's template
- *   4. Claude            — anything left, grounded only in the ERP facts
+ *   3. ERP placeholders  — real prices filled into a rule's template
+ *   4. FAQ answers       — stated policy, sent word for word, still no API call
+ *   5. the AI            — anything left, grounded only in the facts above
  *
  * The layer order is the safety design, not just an optimisation: the expensive,
  * least predictable layer only ever sees messages the safe layers declined, and a
@@ -80,6 +86,7 @@ export class ReplyBrainService {
     private readonly settings: AutomationSettingsService,
     private readonly erpService: AutomationErpService,
     private readonly aiService: AutomationAiService,
+    private readonly faqService: AutomationFaqService,
   ) {}
 
   /** Rules for this channel plus the global ones, cheapest priority first. */
@@ -291,6 +298,7 @@ export class ReplyBrainService {
         privateText,
         source: needsErp ? 'erp' : 'rule',
         ruleId: rule.id,
+        faqId: null,
         confidence: 1,
         reason: `rule ${rule.id} (${rule.name})`,
         aiModel: null,
@@ -299,13 +307,45 @@ export class ReplyBrainService {
       };
     }
 
-    // 3. AI.
+    // 3. FAQ.
+    //
+    // Stated answers to the questions no table can answer: delivery time,
+    // coverage, how to order. A confident match is sent word for word, which is
+    // what lets this layer work at all while the AI is switched off — and what
+    // keeps a routine "koto din lagbe?" from costing an API call once it is on.
+    const global = await this.settings.getGlobal();
+    const faqs = await this.faqService.activeForChannel(channel.id);
+
+    if (global.faq_direct_reply !== false) {
+      const match = AutomationFaqService.bestMatch(
+        faqs,
+        incoming,
+        Number(global.faq_min_score ?? 0.75),
+      );
+
+      if (match) {
+        return {
+          action: 'reply',
+          text: match.faq.answer,
+          privateText: null,
+          source: 'faq',
+          ruleId: null,
+          faqId: match.faq.id,
+          confidence: match.score,
+          reason: `FAQ ${match.faq.id} (${match.faq.question}) — matched ${match.matched.join(', ')}`,
+          aiModel: null,
+          aiUsage: null,
+          erp,
+        };
+      }
+    }
+
+    // 4. AI.
     const aiSettings = await this.settings.getAi();
     if (!aiSettings.enabled) {
-      const global = await this.settings.getGlobal();
       return global.fallback_action === 'ignore'
-        ? ignore('no rule matched and AI is off')
-        : escalate('no rule matched and AI is off');
+        ? ignore('no rule or FAQ matched and AI is off')
+        : escalate('no rule or FAQ matched and AI is off');
     }
 
     erp = erp ?? (await this.erpService.buildContext(incoming, channel.storefront_id));
@@ -317,6 +357,10 @@ export class ReplyBrainService {
       incomingText: incoming,
       history: history.slice(-Math.max(1, Number(aiSettings.history_turns) || 8)),
       erp,
+      // Every active answer, not just the ones the matcher liked: a question
+      // phrased in a way the scorer missed is exactly the case the model is
+      // here to handle, and it can only do that grounded.
+      faqs: AutomationFaqService.toFacts(faqs, Number(global.faq_max_in_prompt ?? 20)),
       threadType,
     });
 
@@ -347,12 +391,18 @@ export class ReplyBrainService {
       privateText: null,
       source: 'ai',
       ruleId: null,
+      faqId: null,
       confidence: ai.confidence,
       reason: ai.reason ?? 'AI reply',
       aiModel: ai.model,
       aiUsage: ai.usage,
       erp,
     };
+  }
+
+  /** Bumps the hit counter for an FAQ that produced a reply. Best-effort. */
+  async recordFaqHit(faqId: number): Promise<void> {
+    await this.faqService.recordHit(faqId);
   }
 
   /** Bumps the hit counter for a rule that produced a reply. Best-effort. */

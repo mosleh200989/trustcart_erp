@@ -15,7 +15,7 @@ import {
 
 const PAGE_SIZE = 50;
 
-const ENTITIES = ['channel', 'rule', 'settings', 'conversation', 'message', 'outbox', 'gate'];
+const ENTITIES = ['channel', 'rule', 'faq', 'settings', 'conversation', 'message', 'outbox', 'gate'];
 
 /**
  * Who changed what inside this panel.

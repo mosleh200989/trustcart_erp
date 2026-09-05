@@ -374,6 +374,7 @@ export class FacebookEventService {
           privateText: null,
           source: 'rule',
           ruleId: null,
+          faqId: null,
           confidence: 1,
           reason: 'outside business hours',
           aiModel: null,
@@ -399,6 +400,10 @@ export class FacebookEventService {
 
     if (decision.ruleId) {
       void this.replyBrain.recordRuleHit(decision.ruleId);
+    }
+
+    if (decision.faqId) {
+      void this.replyBrain.recordFaqHit(decision.faqId);
     }
 
     if (decision.erp?.customerId && !conversation.customer_id) {
@@ -607,12 +612,15 @@ export class FacebookEventService {
         text: body,
         source: decision.source,
         rule_id: decision.ruleId,
+        // The FAQ id rides in meta rather than a column of its own: rule_id is
+        // a foreign key into a different table, and reusing it would make
+        // "which rule fired?" answer with an unrelated row.
         confidence: decision.confidence,
         shadow: isShadow,
         status: isShadow ? 'held' : 'pending',
         ai_model: decision.aiModel,
         ai_usage: decision.aiUsage,
-        meta: { reason: decision.reason },
+        meta: { reason: decision.reason, faq_id: decision.faqId ?? null },
       }),
     );
 

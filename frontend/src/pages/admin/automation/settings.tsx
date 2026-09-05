@@ -334,6 +334,46 @@ export default function AutomationSettingsPage() {
               )}
             </div>
 
+            <div className="md:col-span-2 rounded-lg border border-slate-200 p-3">
+              <Check
+                label="Answer from the FAQ without the AI"
+                hint="A confident keyword match sends the stated answer word for word — no model, no API call, and it works while the AI layer is switched off. Turn this off to keep FAQ answers as prompt facts only."
+                checked={settings.global.faq_direct_reply !== false}
+                onChange={(v) => patch('global', { faq_direct_reply: v })}
+                disabled={!canManage}
+              />
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field
+                  label="Match strength needed"
+                  hint="0 to 1. At 0.75 a two-word keyword is enough on its own, a single shared word is not — “delivery” fits both “delivery koto din” and “delivery charge koto”."
+                >
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    className={inputClass}
+                    disabled={!canManage || settings.global.faq_direct_reply === false}
+                    value={settings.global.faq_min_score}
+                    onChange={(e) => patch('global', { faq_min_score: Number(e.target.value) })}
+                  />
+                </Field>
+                <Field
+                  label="Answers given to the AI"
+                  hint="These ride on every message, so the list is capped."
+                >
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputClass}
+                    disabled={!canManage}
+                    value={settings.global.faq_max_in_prompt}
+                    onChange={(e) => patch('global', { faq_max_in_prompt: Number(e.target.value) })}
+                  />
+                </Field>
+              </div>
+            </div>
+
             <Field
               label="Log retention (days)"
               hint="Old events are pruned nightly. 0 keeps everything — the disk will grow."

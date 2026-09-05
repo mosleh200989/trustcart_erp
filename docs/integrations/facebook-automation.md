@@ -49,7 +49,8 @@ cd backend && npm run db:up
 
 This creates `automation_settings`, `automation_channels`, `automation_events`,
 `automation_conversations`, `automation_messages`, `automation_rules`,
-`automation_outbox` and `automation_audit`, and seeds four permissions.
+`automation_faqs`, `automation_outbox` and `automation_audit`, and seeds four
+permissions.
 
 ---
 
@@ -135,7 +136,7 @@ The default path is deliberately slow, and worth following:
 
 ## 7. How a reply is decided
 
-Four layers, cheapest first. Each one is a safety gate, not just an optimisation.
+Five layers, cheapest first. Each one is a safety gate, not just an optimisation.
 
 1. **Escalation checks** — complaints, refunds, order numbers, phone numbers.
    Handed to a person; nothing is auto-sent.
@@ -143,8 +144,11 @@ Four layers, cheapest first. Each one is a safety gate, not just an optimisation
 3. **ERP placeholders** — `{{product_price}}`, `{{order_status}}` and friends are
    filled from the shop's own tables. If a placeholder cannot be resolved, the
    rule is skipped rather than sending a broken reply.
-4. **Claude** — only for what is left, and only allowed to state facts supplied
-   from the ERP. A low-confidence answer becomes an escalation, not a reply.
+4. **FAQ answers** — stated policy for the questions no table can answer.
+   Sent word for word, still without an API call. See section 10.
+5. **The AI** — only for what is left, and only allowed to state facts supplied
+   from the ERP and the FAQ. A low-confidence answer becomes an escalation, not
+   a reply.
 
 ## 8. Built-in safety rails
 
@@ -169,8 +173,58 @@ Four layers, cheapest first. Each one is a safety gate, not just an optimisation
 | `backend/src/modules/automation/facebook/` | Webhook, Graph API, reply brain, outbox |
 | `backend/src/common/guards/meta-webhook.guard.ts` | Signature verification |
 | `db/migrations/2026-08-28-automation-suite.sql` | Schema + permissions |
+| `db/migrations/2026-09-05-automation-faq.sql` | FAQ table + starter answers |
 | `frontend/src/pages/admin/automation/` | The panel |
 | `frontend/src/layouts/AutomationLayout.tsx` | Panel shell + password gate |
 
 Retries and nightly pruning ride on `@nestjs/schedule`, already registered
 globally in `AppModule` — there is nothing extra to start or supervise.
+
+---
+
+## 10. The FAQ layer
+
+Prices and order status come from the ERP because they change. Delivery time,
+coverage, payment terms and how to order live in no table at all — so before
+this existed the reply engine had nothing grounded to say about the most common
+questions on the page, and correctly escalated every one of them.
+
+**Panel → FAQ.** An answer is written by a person and sent to the customer word
+for word. That is why:
+
+- **No `{{placeholders}}`.** The API refuses them. An answer needing live data
+  belongs in a rule.
+- **No figures that belong to the catalogue.** A price typed here goes stale
+  exactly the way a price in an imported chat does — which is the mistake the
+  whole masking design exists to avoid.
+- **Starter answers ship switched off.** Their wording comes from the team's own
+  imported threads, so it is their policy rather than an invention, but nobody
+  has confirmed it is still current. Read them in the panel, correct them, then
+  turn them on.
+
+### Matching
+
+A confident keyword match answers directly, with no model in the loop — which
+is what makes this layer useful while the AI is switched off, and what keeps a
+routine "koto din lagbe?" free once it is on.
+
+| Signal | Score |
+|---|---|
+| A multi-word keyword phrase (`koto din`) | 1.0 |
+| A single-word keyword (`delivery`) | 0.6 |
+| A significant word from the question itself | 0.25 |
+
+The default threshold is **0.75**, so a phrase is enough on its own and a single
+shared word is not: "delivery" fits both "delivery koto din" and "delivery
+charge koto", and sending the wrong stated answer is worse than asking a person.
+Below the threshold the message carries on to the AI, which receives every
+active answer as policy facts — a question phrased in a way the scorer missed is
+exactly what the model is there for.
+
+Tokenising keeps Unicode Marks (`\p{M}`) as well as Letters. Bengali vowel signs
+are combining marks, so a letters-only class splits `ডেলিভারি` into four
+meaningless fragments and no Bengali keyword can ever match.
+
+Thresholds, the direct-reply switch and the prompt cap live in
+**Panel → Settings → General**. The FAQ page has a dry-run tester that shows the
+winning answer, its score and which keywords fired, and sends nothing.

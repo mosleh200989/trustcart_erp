@@ -7,6 +7,7 @@ import { AutomationEvent } from './entities/automation-event.entity';
 import { AutomationConversation } from './entities/automation-conversation.entity';
 import { AutomationMessage } from './entities/automation-message.entity';
 import { AutomationRule } from './entities/automation-rule.entity';
+import { AutomationFaq } from './entities/automation-faq.entity';
 import { AutomationOutbox } from './entities/automation-outbox.entity';
 import { AutomationAudit } from './entities/automation-audit.entity';
 import { AutomationImportRun } from './entities/automation-import-run.entity';
@@ -26,6 +27,7 @@ import { AutomationGateService } from './automation-gate.service';
 import { AutomationGateGuard } from './automation-gate.guard';
 import { AutomationErpService } from './automation-erp.service';
 import { AutomationAiService } from './automation-ai.service';
+import { AutomationFaqService } from './automation-faq.service';
 import { AutomationService } from './automation.service';
 
 import { FacebookApiService } from './facebook/facebook-api.service';
@@ -60,6 +62,7 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
       AutomationConversation,
       AutomationMessage,
       AutomationRule,
+      AutomationFaq,
       AutomationOutbox,
       AutomationAudit,
       AutomationImportRun,
@@ -82,6 +85,7 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
     AutomationGateGuard,
     AutomationErpService,
     AutomationAiService,
+    AutomationFaqService,
     AutomationService,
     FacebookApiService,
     ReplyBrainService,

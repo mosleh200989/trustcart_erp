@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AutomationAiSettings } from './automation-settings.service';
 import { ErpContext } from './automation-erp.service';
+import { FaqFact } from './automation-faq.service';
 import { AiMessage } from './ai/ai-provider.types';
 import {
   createAiProvider,
@@ -62,8 +63,16 @@ export class AutomationAiService {
     return this.configurationError((settings ?? {}) as AutomationAiSettings) === null;
   }
 
-  /** Renders ERP rows into the plain-text fact sheet the model is allowed to quote. */
-  private renderFacts(erp: ErpContext): string {
+  /**
+   * Renders the fact sheet the model is allowed to quote.
+   *
+   * Two sources, both ours: live ERP rows for anything that changes, and the
+   * hand-written FAQ answers for policy that lives in no table. Without the
+   * second half the model had nothing grounded to say about delivery time,
+   * coverage or how to order — the most common questions on the page — so the
+   * only correct behaviour left to it was to escalate every one of them.
+   */
+  private renderFacts(erp: ErpContext, faqs: FaqFact[]): string {
     const lines: string[] = [];
 
     if (erp.products.length > 0) {
@@ -144,9 +153,11 @@ export class AutomationAiService {
     incomingText: string;
     history: AiTurn[];
     erp: ErpContext;
+    faqs?: FaqFact[];
     threadType: 'comment' | 'message';
   }): Promise<AiReply> {
     const { settings, persona, channelName, incomingText, history, erp, threadType } = options;
+    const faqs = options.faqs ?? [];
     const provider = createAiProvider(settings as any);
     const model = resolveModel(settings as any);
 
@@ -162,7 +173,7 @@ export class AutomationAiService {
         ? 'This is a public comment under a Facebook post — anyone can read your reply. Keep it short and never repeat personal details.'
         : 'This is a private Messenger conversation.',
       '--- SHOP FACTS (the only facts you may state) ---',
-      this.renderFacts(erp),
+      this.renderFacts(erp, faqs),
       '--- END SHOP FACTS ---',
       OUTPUT_CONTRACT,
     ].join('\n\n');

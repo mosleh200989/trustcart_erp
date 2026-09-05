@@ -175,6 +175,62 @@ export class CreateRuleDto {
   is_active?: boolean;
 }
 
+export class CreateFaqDto {
+  @IsOptional()
+  @IsInt()
+  channel_id?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  category?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  question!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  answer!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  keywords?: string[];
+
+  @IsOptional()
+  @IsInt()
+  priority?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+}
+
+export class UpdateFaqDto extends CreateFaqDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  declare question: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  declare answer: string;
+}
+
+/** Dry-run: which FAQ answer would fire for this text, and how strongly. */
+export class TestFaqDto {
+  @IsInt()
+  channel_id!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  text!: string;
+}
+
 export class UpdateRuleDto extends CreateRuleDto {
   @IsOptional()
   @IsString()

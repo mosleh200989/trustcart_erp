@@ -143,6 +143,30 @@ export type AutomationRule = {
   last_hit_at: string | null;
 };
 
+export type AutomationFaq = {
+  id: number;
+  channel_id: number | null;
+  category: string;
+  question: string;
+  answer: string;
+  keywords: string[];
+  priority: number;
+  is_active: boolean;
+  hit_count: number;
+  last_hit_at: string | null;
+};
+
+export type AutomationFaqTest = {
+  best: {
+    id: number;
+    question: string;
+    answer: string;
+    score: number;
+    matched: string[];
+  } | null;
+  considered: Array<{ id: number; question: string; score: number }>;
+};
+
 export type AutomationConversation = {
   id: number;
   channel_id: number;
@@ -266,6 +290,9 @@ export type AutomationSettings = {
     reply_delay_ms_per_char: number;
     reply_delay_min_ms: number;
     reply_delay_max_ms: number;
+    faq_direct_reply: boolean;
+    faq_min_score: number;
+    faq_max_in_prompt: number;
   };
   ai: {
     enabled: boolean;
@@ -429,6 +456,32 @@ export const automation = {
       channel_id: channelId,
       text,
       thread_type: threadType,
+    });
+    return res.data;
+  },
+
+  async listFaqs(channelId?: number): Promise<AutomationFaq[]> {
+    const res = await automationClient.get('/automation/faqs', {
+      params: channelId ? { channel_id: channelId } : undefined,
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async createFaq(data: Record<string, any>): Promise<AutomationFaq> {
+    const res = await automationClient.post('/automation/faqs', data);
+    return res.data;
+  },
+  async updateFaq(id: number, data: Record<string, any>): Promise<AutomationFaq> {
+    const res = await automationClient.put(`/automation/faqs/${id}`, data);
+    return res.data;
+  },
+  async deleteFaq(id: number) {
+    const res = await automationClient.delete(`/automation/faqs/${id}`);
+    return res.data;
+  },
+  async testFaqs(channelId: number, text: string): Promise<AutomationFaqTest> {
+    const res = await automationClient.post('/automation/faqs/test', {
+      channel_id: channelId,
+      text,
     });
     return res.data;
   },
