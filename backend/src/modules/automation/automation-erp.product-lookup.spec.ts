@@ -59,6 +59,7 @@ function makeQueryBuilder(rows: Partial<Product>[]): QueryRecorder {
     }),
     take: jest.fn(() => builder),
     getMany: jest.fn(async () => rows),
+    andWhereIn: jest.fn(() => builder),
   };
   return builder;
 }
@@ -244,5 +245,60 @@ describe('AutomationErpService.findProducts — ranking', () => {
     await service.findProducts('gastro');
 
     expect(orderClauses(builder)).toContain('match_score');
+  });
+});
+
+/**
+ * The fallback for a message that names no product.
+ *
+ * "dam koto?" is the single most common thing customers write, and every word
+ * in it is a stop word — so the search matched nothing, the engine had no price
+ * it was allowed to state, and the shop's most common question went to a human
+ * every time. These pin that the fallback fires only when nothing matched.
+ */
+describe('AutomationErpService.buildContext — featured products', () => {
+  it('uses the page’s products when the message names none', async () => {
+    const { service } = makeService({
+      productRows: [{ id: 311, name_en: 'Kasri Oil', base_price: 990 as any }],
+    });
+
+    const context = await service.buildContext('dam koto?', null, [311]);
+
+    expect(context.products).toEqual([
+      { id: 311, name: 'Kasri Oil', price: 990, salePrice: null },
+    ]);
+    expect(context.productsAreFeatured).toBe(true);
+  });
+
+  it('never overrides a product the customer actually named', async () => {
+    // The dangerous case: answering "gastro care er dam?" with the headline
+    // product would quote a price for something they did not ask about.
+    const { service } = makeService({
+      productRows: [{ id: 448, name_en: 'Gastro care Only (Kasri)', base_price: 650 as any }],
+    });
+
+    const context = await service.buildContext('gastro care er dam koto?', null, [311]);
+
+    expect(context.products[0].id).toBe(448);
+    expect(context.productsAreFeatured).toBe(false);
+  });
+
+  it('stays empty when nothing matched and nothing is configured', async () => {
+    const { service } = makeService({});
+
+    const context = await service.buildContext('dam koto?', null, []);
+
+    expect(context.products).toEqual([]);
+    expect(context.productsAreFeatured).toBe(false);
+  });
+
+  it('carries no stock in the fallback either', async () => {
+    const { service } = makeService({
+      productRows: [{ id: 311, name_en: 'Kasri Oil', base_price: 990 as any, stock_quantity: 4 }],
+    });
+
+    const context = await service.buildContext('dam koto?', null, [311]);
+
+    expect(Object.keys(context.products[0]).sort()).toEqual(['id', 'name', 'price', 'salePrice']);
   });
 });

@@ -117,7 +117,12 @@ export class AutomationAiService {
     if (erp.products.length > 0) {
       // Price only. Stock is company-internal and must never reach a customer,
       // so it is not in ProductFact at all — there is nothing here to render.
-      lines.push('Products that may match the question:');
+      lines.push(
+        erp.productsAreFeatured
+          ? 'The customer did not name a product. These are the products this page sells — ' +
+              'offer them and ask which one they want, rather than assuming:'
+          : 'Products that may match the question:',
+      );
       for (const product of erp.products) {
         const price =
           product.salePrice != null

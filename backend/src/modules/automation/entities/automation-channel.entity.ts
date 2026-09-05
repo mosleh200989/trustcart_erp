@@ -79,6 +79,16 @@ export class AutomationChannel {
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   business_hours!: Record<string, any>;
 
+  /**
+   * The products this page is mainly about.
+   *
+   * Consulted only when the customer's words match no product — "dam koto?"
+   * names nothing, and without this the engine has no price it is allowed to
+   * state and hands the shop's most common question to a person.
+   */
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  featured_product_ids!: number[];
+
   @Column({ type: 'boolean', default: true })
   is_active!: boolean;
 

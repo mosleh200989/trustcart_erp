@@ -118,6 +118,7 @@ export type AutomationChannel = {
   greeting: string | null;
   signature: string | null;
   max_replies_per_thread_hour: number;
+  featured_product_ids: number[];
   business_hours: Record<string, any>;
   is_active: boolean;
   has_token: boolean;
@@ -141,6 +142,13 @@ export type AutomationRule = {
   is_active: boolean;
   hit_count: number;
   last_hit_at: string | null;
+};
+
+export type AutomationProduct = {
+  id: number;
+  name: string;
+  price: number;
+  salePrice: number | null;
 };
 
 export type AutomationFaq = {
@@ -484,6 +492,18 @@ export const automation = {
       thread_type: threadType,
     });
     return res.data;
+  },
+
+  async searchProducts(q: string): Promise<AutomationProduct[]> {
+    const res = await automationClient.get('/automation/products', { params: { q } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async resolveProducts(ids: number[]): Promise<AutomationProduct[]> {
+    if (ids.length === 0) return [];
+    const res = await automationClient.get('/automation/products', {
+      params: { ids: ids.join(',') },
+    });
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   async listFaqs(channelId?: number): Promise<AutomationFaq[]> {

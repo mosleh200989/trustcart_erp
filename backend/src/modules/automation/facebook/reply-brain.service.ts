@@ -15,6 +15,15 @@ import { HistoryCurationService } from '../history/history-curation.service';
 import { AutomationOrderService } from '../automation-order.service';
 import { AutomationOrderDraft } from '../entities/automation-order-draft.entity';
 
+/** A context with nothing in it, for the paths that never needed a lookup. */
+const EMPTY_ERP: ErpContext = {
+  products: [],
+  productsAreFeatured: false,
+  orders: [],
+  customerId: null,
+  customerName: null,
+};
+
 export type ReplyDecision = {
   action: 'reply' | 'escalate' | 'ignore';
   text: string | null;
@@ -262,7 +271,7 @@ export class ReplyBrainService {
     //    cheerful keyword answer about X.
     const escalation = await this.escalationReason(incoming, threadType, Boolean(draft));
     if (escalation) {
-      const erp = await this.erpService.buildContext(incoming, channel.storefront_id);
+      const erp = await this.erpService.buildContext(incoming, channel.storefront_id, channel.featured_product_ids);
       if (draft) await this.orderService.cancel(draft);
       return escalate(escalation, erp);
     }
@@ -294,7 +303,7 @@ export class ReplyBrainService {
       }
 
       if (rule.action === 'escalate') {
-        erp = erp ?? (await this.erpService.buildContext(incoming, channel.storefront_id));
+        erp = erp ?? (await this.erpService.buildContext(incoming, channel.storefront_id, channel.featured_product_ids));
         return { ...escalate(`rule ${rule.id} (${rule.name}): escalate`, erp), ruleId: rule.id };
       }
 
@@ -309,11 +318,11 @@ export class ReplyBrainService {
 
       const needsErp = /\{\{\s*[a-z_]+\s*\}\}/i.test(template);
       if (needsErp && !erp) {
-        erp = await this.erpService.buildContext(incoming, channel.storefront_id);
+        erp = await this.erpService.buildContext(incoming, channel.storefront_id, channel.featured_product_ids);
       }
 
       const context = {
-        erp: erp ?? { products: [], orders: [], customerId: null, customerName: null },
+        erp: erp ?? EMPTY_ERP,
         channelName: channel.name,
         displayName,
       };
@@ -389,7 +398,7 @@ export class ReplyBrainService {
         : escalate('no rule or FAQ matched and AI is off');
     }
 
-    erp = erp ?? (await this.erpService.buildContext(incoming, channel.storefront_id));
+    erp = erp ?? (await this.erpService.buildContext(incoming, channel.storefront_id, channel.featured_product_ids));
 
     const ai = await this.aiService.generateReply({
       settings: aiSettings,
@@ -562,7 +571,7 @@ export class ReplyBrainService {
       return draft ? escalate('order flow needs the AI layer, which is off') : null;
     }
 
-    const erp = await this.erpService.buildContext(incoming, channel.storefront_id);
+    const erp = await this.erpService.buildContext(incoming, channel.storefront_id, channel.featured_product_ids);
     const known = {
       product: draft?.product_name ?? null,
       quantity: draft?.quantity || null,

@@ -105,6 +105,12 @@ export class CreateChannelDto {
   @Max(100)
   max_replies_per_thread_hour?: number;
 
+  /** Products this page is mainly about, used when the message names none. */
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  featured_product_ids?: number[];
+
   @IsOptional()
   @IsObject()
   business_hours?: Record<string, any>;
