@@ -18,6 +18,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AutomationGateGuard } from './automation-gate.guard';
 import { AutomationService } from './automation.service';
+import { AutomationFaqService } from './automation-faq.service';
 import { AutomationSettingsService } from './automation-settings.service';
 import { AutomationAuditService } from './automation-audit.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
@@ -35,6 +36,9 @@ import {
   UpdateConversationStatusDto,
   UpdateRuleDto,
   UpdateSettingsSectionDto,
+  CreateFaqDto,
+  UpdateFaqDto,
+  TestFaqDto,
   StartImportDto,
   SetExampleDto,
   ApplyExamplesDto,
@@ -54,6 +58,7 @@ const EDITABLE_SETTING_SECTIONS = new Set(['global', 'ai', 'escalation']);
 export class AutomationController {
   constructor(
     private readonly automation: AutomationService,
+    private readonly faqs: AutomationFaqService,
     private readonly settings: AutomationSettingsService,
     private readonly audit: AutomationAuditService,
     private readonly events: FacebookEventService,
@@ -264,6 +269,50 @@ export class AutomationController {
   @RequirePermissions('view-automation')
   testRules(@Body() dto: TestRulesDto) {
     return this.automation.testRules(dto.channel_id, dto.text, dto.thread_type || 'message');
+  }
+
+  // ─── FAQ ─────────────────────────────────────────────────────────────────
+
+  @Get('faqs')
+  @RequirePermissions('view-automation')
+  listFaqs(@Query('channel_id') channelId?: string) {
+    return this.faqs.list(channelId ? Number(channelId) : undefined);
+  }
+
+  @Post('faqs')
+  @RequirePermissions('manage-automation')
+  async createFaq(@Body() dto: CreateFaqDto, @Req() request: Request) {
+    const faq = await this.faqs.create(dto);
+    await this.audit.record(this.actor(request), 'faq.create', 'faq', faq.id, null, faq);
+    return faq;
+  }
+
+  @Put('faqs/:id')
+  @RequirePermissions('manage-automation')
+  async updateFaq(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateFaqDto,
+    @Req() request: Request,
+  ) {
+    const faq = await this.faqs.update(id, dto);
+    await this.audit.record(this.actor(request), 'faq.update', 'faq', id, null, faq);
+    return faq;
+  }
+
+  @Delete('faqs/:id')
+  @RequirePermissions('manage-automation')
+  async deleteFaq(@Param('id', ParseIntPipe) id: number, @Req() request: Request) {
+    const result = await this.faqs.remove(id);
+    await this.audit.record(this.actor(request), 'faq.delete', 'faq', id);
+    return result;
+  }
+
+  /** Dry-run — shows which answer would fire and why, sends nothing. */
+  @Post('faqs/test')
+  @RequirePermissions('view-automation')
+  async testFaqs(@Body() dto: TestFaqDto) {
+    const global = await this.settings.getGlobal();
+    return this.faqs.test(dto.channel_id, dto.text, Number(global.faq_min_score ?? 0.75));
   }
 
   // ─── Inbox ───────────────────────────────────────────────────────────────

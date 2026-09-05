@@ -52,6 +52,28 @@ export type AutomationGlobalSettings = {
   reply_delay_min_ms: number;
   /** Never make anyone wait longer than this, however long the message. */
   reply_delay_max_ms: number;
+  /**
+   * Whether a confident FAQ match answers on its own, without the AI.
+   *
+   * On by default, and the only reason the FAQ layer does anything while the
+   * AI is switched off. Turn it off to keep FAQs as prompt facts only.
+   */
+  faq_direct_reply: boolean;
+  /**
+   * How strong a match has to be before a stated answer is sent.
+   *
+   * At the default, one multi-word keyword is enough on its own, but a single
+   * shared word is not — "delivery" alone fits both "delivery koto din" and
+   * "delivery charge koto", and answering the wrong one is worse than asking a
+   * human. Below this the message carries on to the AI or the fallback.
+   */
+  faq_min_score: number;
+  /**
+   * How many answers are pasted into the AI prompt. Capped because this rides
+   * on every message: an unbounded list makes every reply more expensive as
+   * the panel fills up.
+   */
+  faq_max_in_prompt: number;
 };
 
 export type AutomationAiSettings = {
@@ -114,6 +136,9 @@ const DEFAULTS: {
     reply_delay_ms_per_char: 80,
     reply_delay_min_ms: 3000,
     reply_delay_max_ms: 25000,
+    faq_direct_reply: true,
+    faq_min_score: 0.75,
+    faq_max_in_prompt: 20,
   },
   ai: {
     enabled: false,

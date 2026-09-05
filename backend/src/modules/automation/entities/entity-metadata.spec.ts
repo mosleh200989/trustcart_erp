@@ -8,6 +8,10 @@ import { AutomationMessage } from './automation-message.entity';
 import { AutomationRule } from './automation-rule.entity';
 import { AutomationOutbox } from './automation-outbox.entity';
 import { AutomationAudit } from './automation-audit.entity';
+import { AutomationFaq } from './automation-faq.entity';
+import { AutomationImportRun } from './automation-import-run.entity';
+import { AutomationHistoryThread } from './automation-history-thread.entity';
+import { AutomationHistoryMessage } from './automation-history-message.entity';
 
 const ENTITIES = [
   AutomationSetting,
@@ -18,6 +22,10 @@ const ENTITIES = [
   AutomationRule,
   AutomationOutbox,
   AutomationAudit,
+  AutomationFaq,
+  AutomationImportRun,
+  AutomationHistoryThread,
+  AutomationHistoryMessage,
 ];
 
 /**
@@ -74,6 +82,10 @@ describe('automation entity metadata', () => {
       'automation_rules',
       'automation_outbox',
       'automation_audit',
+      'automation_faqs',
+      'automation_import_runs',
+      'automation_history_threads',
+      'automation_history_messages',
     ]);
   });
 });

@@ -163,3 +163,137 @@ describe('ReplyBrainService.renderTemplate', () => {
     ).toBe('Handsome Man');
   });
 });
+
+/**
+ * The FAQ layer, in place.
+ *
+ * Two things matter here and nowhere else: a confident match must answer
+ * without a model in the loop — that is the only reason this layer does
+ * anything while the AI is off — and a weak match must not send a stated
+ * answer to the wrong question.
+ */
+describe('ReplyBrainService.decide — FAQ layer', () => {
+  const CHANNEL = { id: 1, name: 'Kasri Oil', storefront_id: null, persona: null } as any;
+
+  const FAQ = {
+    id: 5,
+    channel_id: null,
+    category: 'delivery',
+    question: 'How long does delivery take?',
+    answer: 'ঢাকার ভিতর ১-২ দিন, ঢাকার বাইরে ২-৩ দিন।',
+    keywords: ['koto din', 'কত দিন'],
+    priority: 100,
+    is_active: true,
+    hit_count: 0,
+    last_hit_at: null,
+  } as any;
+
+  function makeBrain(options: { faqs?: any[]; aiEnabled?: boolean; global?: Record<string, any> } = {}) {
+    const generateReply = jest.fn();
+
+    const rulesRepository = { find: jest.fn(async () => []) } as any;
+    const settings = {
+      getEscalation: jest.fn(async () => ({
+        keywords: [],
+        escalate_on_order_number: false,
+        escalate_on_phone_number: false,
+        create_support_ticket: false,
+      })),
+      getGlobal: jest.fn(async () => ({
+        fallback_action: 'escalate',
+        faq_direct_reply: true,
+        faq_min_score: 0.75,
+        faq_max_in_prompt: 20,
+        ...(options.global ?? {}),
+      })),
+      getAi: jest.fn(async () => ({ enabled: options.aiEnabled ?? false, history_turns: 8 })),
+    } as any;
+    const erpService = { buildContext: jest.fn(async () => EMPTY_ERP) } as any;
+    const aiService = { generateReply } as any;
+    const faqService = {
+      activeForChannel: jest.fn(async () => options.faqs ?? []),
+      recordHit: jest.fn(async () => undefined),
+    } as any;
+
+    return {
+      brain: new ReplyBrainService(rulesRepository, settings, erpService, aiService, faqService),
+      generateReply,
+    };
+  }
+
+  const ask = (brain: ReplyBrainService, text: string) =>
+    brain.decide({ channel: CHANNEL, threadType: 'message', text, history: [] });
+
+  it('answers a confident match verbatim, without calling the AI', async () => {
+    const { brain, generateReply } = makeBrain({ faqs: [FAQ], aiEnabled: true });
+
+    const decision = await ask(brain, 'delivery koto din lagbe?');
+
+    expect(decision.action).toBe('reply');
+    expect(decision.text).toBe(FAQ.answer);
+    expect(decision.source).toBe('faq');
+    expect(decision.faqId).toBe(5);
+    expect(generateReply).not.toHaveBeenCalled();
+  });
+
+  it('works with the AI switched off — the whole point of the layer', async () => {
+    const { brain } = makeBrain({ faqs: [FAQ], aiEnabled: false });
+
+    const decision = await ask(brain, 'কত দিন লাগবে?');
+
+    expect(decision.action).toBe('reply');
+    expect(decision.source).toBe('faq');
+  });
+
+  it('escalates rather than sending a weak match', async () => {
+    const weak = { ...FAQ, question: 'Delivery info', keywords: ['delivery'] };
+    const { brain } = makeBrain({ faqs: [weak], aiEnabled: false });
+
+    const decision = await ask(brain, 'delivery charge koto?');
+
+    expect(decision.action).toBe('escalate');
+    expect(decision.text).toBeNull();
+  });
+
+  it('hands every active answer to the model when nothing matched confidently', async () => {
+    // A question the scorer missed is exactly what the model is for, and it can
+    // only answer it grounded.
+    const { brain, generateReply } = makeBrain({ faqs: [FAQ], aiEnabled: true });
+    generateReply.mockResolvedValue({
+      text: 'Two days.',
+      confidence: 0.9,
+      escalate: false,
+      reason: null,
+      model: 'test',
+      usage: null,
+    });
+
+    await ask(brain, 'when will it arrive at my house?');
+
+    expect(generateReply).toHaveBeenCalledTimes(1);
+    expect(generateReply.mock.calls[0][0].faqs).toEqual([
+      { id: 5, question: FAQ.question, answer: FAQ.answer },
+    ]);
+  });
+
+  it('keeps FAQs as prompt facts only when direct reply is switched off', async () => {
+    const { brain, generateReply } = makeBrain({
+      faqs: [FAQ],
+      aiEnabled: true,
+      global: { faq_direct_reply: false },
+    });
+    generateReply.mockResolvedValue({
+      text: 'Two days.',
+      confidence: 0.9,
+      escalate: false,
+      reason: null,
+      model: 'test',
+      usage: null,
+    });
+
+    const decision = await ask(brain, 'delivery koto din lagbe?');
+
+    expect(decision.source).toBe('ai');
+    expect(generateReply.mock.calls[0][0].faqs).toHaveLength(1);
+  });
+});

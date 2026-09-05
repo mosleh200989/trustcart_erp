@@ -1,10 +1,16 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { AutomationReplySource } from '../automation.types';
 
 export type AutomationMessageDirection = 'inbound' | 'outbound';
 export type AutomationMessageKind = 'message' | 'comment' | 'private_reply' | 'post';
 
-/** Which layer of the reply brain produced this text. */
-export type AutomationReplySource = 'rule' | 'erp' | 'ai' | 'human' | 'greeting';
+/**
+ * Which layer of the reply brain produced this text.
+ *
+ * Re-exported rather than redeclared: this union used to be defined twice, and
+ * adding a source to one copy left the other silently rejecting it.
+ */
+export { AutomationReplySource };
 
 export type AutomationMessageStatus = 'pending' | 'sent' | 'failed' | 'held';
 
