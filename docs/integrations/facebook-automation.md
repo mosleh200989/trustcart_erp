@@ -228,3 +228,35 @@ meaningless fragments and no Bengali keyword can ever match.
 Thresholds, the direct-reply switch and the prompt cap live in
 **Panel → Settings → General**. The FAQ page has a dry-run tester that shows the
 winning answer, its score and which keywords fired, and sends nothing.
+
+---
+
+## 11. Style examples
+
+The grounding split has two halves. Facts come from the ERP and the FAQ.
+**Voice** comes from the imported history.
+
+Star a reply on **Panel → History import** and it is pasted into the system
+prompt under `HOW OUR TEAM WRITES`, in conversation order — greeting, then
+qualifying, then price, then order, then closing — so the block reads as a flow
+rather than a bag of sentences.
+
+Every figure in those messages was removed at import because it was already
+stale, so the block tells the model plainly what to copy and what to ignore:
+shown `eta [PRICE] tk` and told nothing, a model will happily send a customer
+the literal word `[PRICE]`.
+
+Two layers stop a stale number reaching anyone:
+
+1. **Masking at import** — the original is never written to disk, so a leaked
+   figure can be swept up later by re-running the masker (History import →
+   re-clean). It cannot be leaked by a change to a query or a prompt, because it
+   is not there.
+2. **A withholding filter at load** — any starred example still carrying a run
+   of three or more digits is dropped from the prompt and logged. Three, not
+   four: the `NUMBER` masking rule only sweeps runs of four or more, so a
+   three-digit price that never sat beside a currency word survives import
+   looking like ordinary text.
+
+Toggle and cap live in **Panel → Settings → AI**. With the toggle off the model
+falls back on the channel's written persona alone.

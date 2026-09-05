@@ -96,6 +96,17 @@ export type AutomationAiSettings = {
   min_confidence: number;
   /** How many previous turns of the thread to give the model. */
   history_turns: number;
+  /**
+   * Whether the starred replies from the history import are pasted into the
+   * system prompt as a voice sample.
+   *
+   * They teach shape, never truth: every figure in them was removed at import
+   * because it was already stale. Turn this off to fall back on the written
+   * persona alone.
+   */
+  style_examples_enabled: boolean;
+  /** How many starred replies to include. These ride on every message. */
+  max_style_examples: number;
   system_prompt: string;
 };
 
@@ -151,6 +162,8 @@ const DEFAULTS: {
     max_tokens: 1024,
     min_confidence: 0.6,
     history_turns: 8,
+    style_examples_enabled: true,
+    max_style_examples: 24,
     system_prompt:
       'You are a polite customer-support assistant for an online shop in Bangladesh. ' +
       'Reply in the same language the customer used (Bangla, Banglish or English). ' +

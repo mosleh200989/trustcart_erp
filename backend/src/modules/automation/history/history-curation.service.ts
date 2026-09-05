@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { AutomationHistoryMessage } from '../entities/automation-history-message.entity';
-import { maskMessage } from './message-masker';
+import { maskMessage, normalizeBengaliDigits } from './message-masker';
 import { isSystemMessage } from './system-message';
 
 /**
@@ -58,6 +58,22 @@ const INTENTS: Array<{ key: string; label: string; patterns: RegExp[] }> = [
     patterns: [/ধন্যবাদ/, /কনফার্ম করা হয়েছে/, /প্রতিনিধি/, /যোগাযোগ করবে/, /মতামত/],
   },
 ];
+
+/** One starred reply, as the system prompt sees it. */
+export type StyleExample = {
+  id: number;
+  text: string;
+  intent: string;
+};
+
+/**
+ * A run of digits this long in a masked message is a figure the masker missed.
+ *
+ * Three, not four: the NUMBER rule only sweeps up runs of four or more, so a
+ * three-digit price that never sat next to a currency word — "850 er jonno" —
+ * survives import looking exactly like ordinary text.
+ */
+const LEAKED_FIGURE = /\d{3,}/;
 
 export type ExampleCandidate = {
   id: number;
@@ -213,6 +229,56 @@ export class HistoryCurationService {
     // Emit in conversation order so the set reads as a flow.
     const candidates = INTENTS.flatMap((intent) => buckets.get(intent.key) ?? []);
     return { candidates, rejected };
+  }
+
+  /**
+   * The starred replies for one channel, ready to paste into the system prompt.
+   *
+   * Emitted in conversation order — greeting, qualifying, price, order, and so
+   * on — so the block reads as a flow rather than a bag of sentences, which is
+   * what teaches the model where in a conversation each shape belongs.
+   *
+   * Anything still carrying a run of digits is dropped here rather than merely
+   * unlikely to appear. Masking happens at import, so a leak means the masker
+   * had a gap when that row was written; re-running the masker fixes the store,
+   * but this filter means a gap discovered tomorrow cannot have been quoted to
+   * a customer today.
+   */
+  async styleExamples(channelId: number, max: number): Promise<StyleExample[]> {
+    const limit = Number.isFinite(max) && max > 0 ? Math.floor(max) : 24;
+
+    const rows = await this.messageRepository.find({
+      where: { channel_id: channelId, is_example: true, direction: 'outbound' },
+      order: { id: 'ASC' },
+    });
+
+    const kept: StyleExample[] = [];
+    let leaked = 0;
+
+    for (const row of rows) {
+      const text = String(row.text ?? '').trim();
+      if (!text) continue;
+
+      if (LEAKED_FIGURE.test(normalizeBengaliDigits(text))) {
+        leaked += 1;
+        continue;
+      }
+
+      const intent = this.classify(text.replace(/\s+/g, ' '));
+      kept.push({ id: row.id, text, intent: intent?.key ?? 'other' });
+    }
+
+    if (leaked > 0) {
+      this.logger.warn(
+        `${leaked} starred example(s) still contain a figure and were withheld from the prompt. ` +
+          'Run the re-clean on the History import page.',
+      );
+    }
+
+    const order = new Map(INTENTS.map((intent, index) => [intent.key, index]));
+    kept.sort((a, b) => (order.get(a.intent) ?? 99) - (order.get(b.intent) ?? 99));
+
+    return kept.slice(0, limit);
   }
 
   /** Marks exactly this set as the examples, clearing any previous selection. */

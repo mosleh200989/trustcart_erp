@@ -188,7 +188,15 @@ describe('ReplyBrainService.decide — FAQ layer', () => {
     last_hit_at: null,
   } as any;
 
-  function makeBrain(options: { faqs?: any[]; aiEnabled?: boolean; global?: Record<string, any> } = {}) {
+  function makeBrain(
+    options: {
+      faqs?: any[];
+      aiEnabled?: boolean;
+      global?: Record<string, any>;
+      ai?: Record<string, any>;
+      examples?: any[];
+    } = {},
+  ) {
     const generateReply = jest.fn();
 
     const rulesRepository = { find: jest.fn(async () => []) } as any;
@@ -206,7 +214,13 @@ describe('ReplyBrainService.decide — FAQ layer', () => {
         faq_max_in_prompt: 20,
         ...(options.global ?? {}),
       })),
-      getAi: jest.fn(async () => ({ enabled: options.aiEnabled ?? false, history_turns: 8 })),
+      getAi: jest.fn(async () => ({
+        enabled: options.aiEnabled ?? false,
+        history_turns: 8,
+        style_examples_enabled: true,
+        max_style_examples: 24,
+        ...(options.ai ?? {}),
+      })),
     } as any;
     const erpService = { buildContext: jest.fn(async () => EMPTY_ERP) } as any;
     const aiService = { generateReply } as any;
@@ -215,9 +229,21 @@ describe('ReplyBrainService.decide — FAQ layer', () => {
       recordHit: jest.fn(async () => undefined),
     } as any;
 
+    const curation = {
+      styleExamples: jest.fn(async () => options.examples ?? []),
+    } as any;
+
     return {
-      brain: new ReplyBrainService(rulesRepository, settings, erpService, aiService, faqService),
+      brain: new ReplyBrainService(
+        rulesRepository,
+        settings,
+        erpService,
+        aiService,
+        faqService,
+        curation,
+      ),
       generateReply,
+      curation,
     };
   }
 
@@ -295,5 +321,90 @@ describe('ReplyBrainService.decide — FAQ layer', () => {
 
     expect(decision.source).toBe('ai');
     expect(generateReply.mock.calls[0][0].faqs).toHaveLength(1);
+  });
+});
+
+describe('ReplyBrainService.decide — style examples', () => {
+  // Re-uses the FAQ block's harness shape; only the example wiring is new.
+  const CHANNEL = { id: 1, name: 'Kasri Oil', storefront_id: null, persona: null } as any;
+
+  const EXAMPLE = { id: 87, text: 'আসসালামু আলাইকুম', intent: 'greeting' };
+
+  function makeBrain(options: { ai?: Record<string, any>; examples?: any[] } = {}) {
+    const generateReply = jest.fn().mockResolvedValue({
+      text: 'ok',
+      confidence: 0.9,
+      escalate: false,
+      reason: null,
+      model: 'test',
+      usage: null,
+    });
+
+    const settings = {
+      getEscalation: jest.fn(async () => ({
+        keywords: [],
+        escalate_on_order_number: false,
+        escalate_on_phone_number: false,
+        create_support_ticket: false,
+      })),
+      getGlobal: jest.fn(async () => ({
+        fallback_action: 'escalate',
+        faq_direct_reply: true,
+        faq_min_score: 0.75,
+        faq_max_in_prompt: 20,
+      })),
+      getAi: jest.fn(async () => ({
+        enabled: true,
+        history_turns: 8,
+        style_examples_enabled: true,
+        max_style_examples: 24,
+        ...(options.ai ?? {}),
+      })),
+    } as any;
+
+    const curation = { styleExamples: jest.fn(async () => options.examples ?? []) } as any;
+
+    const brain = new ReplyBrainService(
+      { find: jest.fn(async () => []) } as any,
+      settings,
+      { buildContext: jest.fn(async () => EMPTY_ERP) } as any,
+      { generateReply } as any,
+      { activeForChannel: jest.fn(async () => []), recordHit: jest.fn() } as any,
+      curation,
+    );
+
+    return { brain, generateReply, curation };
+  }
+
+  const ask = (brain: ReplyBrainService) =>
+    brain.decide({ channel: CHANNEL, threadType: 'message', text: 'apnader ki ache?', history: [] });
+
+  it('hands the starred replies to the model', async () => {
+    const { brain, generateReply } = makeBrain({ examples: [EXAMPLE] });
+
+    await ask(brain);
+
+    expect(generateReply.mock.calls[0][0].styleExamples).toEqual([EXAMPLE]);
+  });
+
+  it('asks for examples scoped to this channel, at the configured cap', async () => {
+    // Another page's history is another team's voice.
+    const { brain, curation } = makeBrain({ examples: [EXAMPLE], ai: { max_style_examples: 5 } });
+
+    await ask(brain);
+
+    expect(curation.styleExamples).toHaveBeenCalledWith(1, 5);
+  });
+
+  it('sends none when the setting is off, without querying for them', async () => {
+    const { brain, generateReply, curation } = makeBrain({
+      examples: [EXAMPLE],
+      ai: { style_examples_enabled: false },
+    });
+
+    await ask(brain);
+
+    expect(generateReply.mock.calls[0][0].styleExamples).toEqual([]);
+    expect(curation.styleExamples).not.toHaveBeenCalled();
   });
 });

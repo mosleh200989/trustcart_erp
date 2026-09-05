@@ -11,6 +11,7 @@ import { AutomationSettingsService } from '../automation-settings.service';
 import { AutomationErpService, ErpContext } from '../automation-erp.service';
 import { AutomationAiService, AiTurn } from '../automation-ai.service';
 import { AutomationFaqService } from '../automation-faq.service';
+import { HistoryCurationService } from '../history/history-curation.service';
 
 export type ReplyDecision = {
   action: 'reply' | 'escalate' | 'ignore';
@@ -87,6 +88,7 @@ export class ReplyBrainService {
     private readonly erpService: AutomationErpService,
     private readonly aiService: AutomationAiService,
     private readonly faqService: AutomationFaqService,
+    private readonly curation: HistoryCurationService,
   ) {}
 
   /** Rules for this channel plus the global ones, cheapest priority first. */
@@ -361,6 +363,15 @@ export class ReplyBrainService {
       // phrased in a way the scorer missed is exactly the case the model is
       // here to handle, and it can only do that grounded.
       faqs: AutomationFaqService.toFacts(faqs, Number(global.faq_max_in_prompt ?? 20)),
+      // How the team writes, taken from the imported threads. Voice only —
+      // every figure in them was stripped at import.
+      styleExamples:
+        aiSettings.style_examples_enabled === false
+          ? []
+          : await this.curation.styleExamples(
+              channel.id,
+              Number(aiSettings.max_style_examples ?? 24),
+            ),
       threadType,
     });
 
