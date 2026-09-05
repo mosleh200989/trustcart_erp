@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { AutomationFaq } from './entities/automation-faq.entity';
 import { CreateFaqDto } from './dto/automation.dto';
+import { tokenize, normalizePhrase } from './text-tokens';
 
 /** What the AI is allowed to state about policy, alongside the ERP facts. */
 export type FaqFact = {
@@ -32,28 +33,9 @@ const STOP_WORDS = new Set([
   'কি', 'কী', 'আমি', 'আমার', 'আপনি', 'আপনার', 'হবে', 'করতে', 'করব', 'এই', 'এর',
 ]);
 
-/**
- * Splits text into comparable tokens.
- *
- * `\w` is ASCII-only in JavaScript, so splitting on it would shred every
- * Bengali word — the same trap that let `_850_ taka` through the masker.
- *
- * `\p{M}` is just as load-bearing as `\p{L}` here. Bengali vowel signs and the
- * virama (ি, ে, া, ্) are combining Marks, not Letters, so a class of letters
- * and numbers alone treats them as separators: "ডেলিভারি" comes back as
- * ["ড", "ল", "ভ", "র"] and no Bengali keyword can ever match.
- */
-export function tokenize(text: string): string[] {
-  return String(text ?? '')
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}\p{M}]+/u)
-    .filter(Boolean);
-}
+/** Re-exported so callers that already import it from here keep working. */
+export { tokenize };
 
-/** Collapses whitespace and punctuation so a phrase can be searched as a substring. */
-function normalizePhrase(text: string): string {
-  return tokenize(text).join(' ');
-}
 
 /**
  * The answers a person wrote for questions the database cannot answer.
