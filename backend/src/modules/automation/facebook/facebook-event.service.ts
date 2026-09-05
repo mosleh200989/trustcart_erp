@@ -396,6 +396,7 @@ export class FacebookEventService {
       text: event.text ?? '',
       history,
       displayName: event.senderName,
+      conversationId: conversation.id,
     });
 
     if (decision.ruleId) {

@@ -78,6 +78,7 @@ const BADGE_TONES: Record<string, string> = {
   rule: 'bg-teal-100 text-teal-700 border-teal-200',
   erp: 'bg-cyan-100 text-cyan-700 border-cyan-200',
   faq: 'bg-sky-100 text-sky-700 border-sky-200',
+  order: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 };
 
 export function Badge({ value, children }: { value?: string; children?: ReactNode }) {

@@ -260,3 +260,44 @@ Two layers stop a stale number reaching anyone:
 
 Toggle and cap live in **Panel → Settings → AI**. With the toggle off the model
 falls back on the channel's written persona alone.
+
+---
+
+## 12. Taking orders in the thread
+
+**Panel → Settings → Orders from Messenger.** Off by default — every other
+switch in this panel can only produce words; this one writes a row to
+`sales_orders`.
+
+The flow: settle the product and quantity, ask for name, mobile and address one
+at a time, read the whole order back, and create it only when the customer
+confirms in writing. The order is created through `SalesService`, not by
+inserting rows, so a Messenger order is indistinguishable downstream from a
+website one — order number, customer linking, courier, Meta CAPI and every
+dashboard behave identically. It lands at status `processing`, cash on
+delivery, with `order_source = 'messenger_bot'`.
+
+### What it will not do
+
+- **Never in shadow or off mode.** Everywhere else "shadow" means a message is
+  not sent and the worst case is a customer not hearing back. Here it would
+  mean a real delivery. The refusal is enforced in the decision itself.
+- **Never takes payment details.** No bKash number, no transaction ID. They are
+  worth more to an attacker sitting in a Facebook thread than they are to us,
+  and a bot cannot verify either.
+- **Never mentions stock.** Everything the catalogue can find is orderable.
+- **Never creates two orders.** `sales_order_id` is written under a conditional
+  update — the same claim-before-acting shape as the outbox — so a repeated
+  "confirm" or a duplicated webhook is harmless. A partial unique index enforces
+  it in the database as well.
+
+### Two things it changes elsewhere
+
+`escalate_on_phone_number` is suppressed while a draft is open. That rule exists
+to catch someone trying to order in a public comment; during a private order
+flow the customer typing their number is the flow working, and escalating on it
+makes the order impossible to finish. It still fires everywhere else.
+
+The flow needs the AI layer for extraction — nothing else can read a name or an
+address out of free text. With the AI off, a thread that has an open draft is
+handed to a person rather than guessed at.

@@ -316,6 +316,13 @@ export type AutomationSettings = {
     escalate_on_phone_number: boolean;
     create_support_ticket: boolean;
   };
+  order: {
+    enabled: boolean;
+    delivery_charge_inside_dhaka: number;
+    delivery_charge_outside_dhaka: number;
+    confirm_words: string[];
+    cancel_words: string[];
+  };
   gate: {
     password_set: boolean;
     session_minutes: number;
@@ -393,7 +400,7 @@ export const automation = {
     const res = await automationClient.get('/automation/settings');
     return res.data;
   },
-  async updateSettings(section: 'global' | 'ai' | 'escalation', patch: Record<string, any>) {
+  async updateSettings(section: 'global' | 'ai' | 'escalation' | 'order', patch: Record<string, any>) {
     const res = await automationClient.put(`/automation/settings/${section}`, { patch });
     return res.data;
   },

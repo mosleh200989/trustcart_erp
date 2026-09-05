@@ -110,6 +110,26 @@ export type AutomationAiSettings = {
   system_prompt: string;
 };
 
+/**
+ * Taking an order in the thread.
+ *
+ * Off by default. Everything else in this panel can only produce words; this
+ * one creates a row in sales_orders, so it is opt-in the way live mode is.
+ */
+export type AutomationOrderSettings = {
+  enabled: boolean;
+  /** Charges quoted in the read-back and written onto the order. */
+  delivery_charge_inside_dhaka: number;
+  delivery_charge_outside_dhaka: number;
+  /**
+   * Words that count as agreeing to the read-back. Matched as substrings, so
+   * "confirm" also catches "ok confirm korlam".
+   */
+  confirm_words: string[];
+  /** Words that abandon the draft. */
+  cancel_words: string[];
+};
+
 export type AutomationEscalationSettings = {
   keywords: string[];
   escalate_on_order_number: boolean;
@@ -131,6 +151,7 @@ const DEFAULTS: {
   ai: AutomationAiSettings;
   escalation: AutomationEscalationSettings;
   gate: AutomationGateSettings;
+  order: AutomationOrderSettings;
 } = {
   global: {
     enabled: false,
@@ -172,6 +193,13 @@ const DEFAULTS: {
       'availability, and never say a product is out of stock or unavailable: treat every ' +
       'product in SHOP FACTS as available to order. If you are unsure, or the customer asks ' +
       'about a specific order, a refund, or a complaint, escalate to a human instead of guessing.',
+  },
+  order: {
+    enabled: false,
+    delivery_charge_inside_dhaka: 60,
+    delivery_charge_outside_dhaka: 110,
+    confirm_words: ['confirm', 'কনফার্ম', 'কনফার্ম করুন', 'ok korun', 'হ্যাঁ', 'জি', 'ji'],
+    cancel_words: ['cancel', 'বাতিল', 'lagbe na', 'লাগবে না', 'nibo na', 'নিব না'],
   },
   escalation: {
     keywords: [
@@ -265,18 +293,24 @@ export class AutomationSettingsService {
     return this.readSection('gate', DEFAULTS.gate);
   }
 
+  getOrder(): Promise<AutomationOrderSettings> {
+    return this.readSection('order', DEFAULTS.order);
+  }
+
   /** Every section at once, for the panel's settings screen. The gate password hash is never included. */
   async getAll(): Promise<{
     global: AutomationGlobalSettings;
     ai: AutomationAiSettings;
     escalation: AutomationEscalationSettings;
     gate: Omit<AutomationGateSettings, 'password_hash'> & { password_set: boolean };
+    order: AutomationOrderSettings;
   }> {
-    const [global, ai, escalation, gate] = await Promise.all([
+    const [global, ai, escalation, gate, order] = await Promise.all([
       this.getGlobal(),
       this.getAi(),
       this.getEscalation(),
       this.getGate(),
+      this.getOrder(),
     ]);
 
     const { password_hash, ...safeGate } = gate;
@@ -288,6 +322,7 @@ export class AutomationSettingsService {
       ai: { ...safeAi, api_key_set: Boolean(api_key) } as any,
       escalation,
       gate: { ...safeGate, password_set: Boolean(password_hash) },
+      order,
     };
   }
 

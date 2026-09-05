@@ -7,7 +7,14 @@
 
 export type AutomationThreadTypeAlias = 'comment' | 'message';
 
-export type AutomationReplySource = 'rule' | 'erp' | 'faq' | 'ai' | 'human' | 'greeting';
+export type AutomationReplySource =
+  | 'rule'
+  | 'erp'
+  | 'faq'
+  | 'order'
+  | 'ai'
+  | 'human'
+  | 'greeting';
 
 /** Normalised shape of one inbound Meta event, whatever its original payload. */
 export type NormalizedMetaEvent = {
