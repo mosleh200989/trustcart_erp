@@ -221,6 +221,7 @@ describe('ReplyBrainService.decide — FAQ layer', () => {
         max_style_examples: 24,
         ...(options.ai ?? {}),
       })),
+      getOrder: jest.fn(async () => ({ enabled: false })),
     } as any;
     const erpService = { buildContext: jest.fn(async () => EMPTY_ERP) } as any;
     const aiService = { generateReply } as any;
@@ -241,6 +242,7 @@ describe('ReplyBrainService.decide — FAQ layer', () => {
         aiService,
         faqService,
         curation,
+        { openDraft: jest.fn(async () => null) } as any,
       ),
       generateReply,
       curation,
@@ -360,6 +362,7 @@ describe('ReplyBrainService.decide — style examples', () => {
         max_style_examples: 24,
         ...(options.ai ?? {}),
       })),
+      getOrder: jest.fn(async () => ({ enabled: false })),
     } as any;
 
     const curation = { styleExamples: jest.fn(async () => options.examples ?? []) } as any;
@@ -371,6 +374,7 @@ describe('ReplyBrainService.decide — style examples', () => {
       { generateReply } as any,
       { activeForChannel: jest.fn(async () => []), recordHit: jest.fn() } as any,
       curation,
+      { openDraft: jest.fn(async () => null) } as any,
     );
 
     return { brain, generateReply, curation };
@@ -406,5 +410,159 @@ describe('ReplyBrainService.decide — style examples', () => {
 
     expect(generateReply.mock.calls[0][0].styleExamples).toEqual([]);
     expect(curation.styleExamples).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The order flow, at the decision level.
+ *
+ * The one that matters most is shadow mode: everywhere else in this module
+ * "shadow" means a message is not sent, and the worst case is a customer not
+ * hearing back. Here it would mean a real row in sales_orders — a delivery,
+ * a courier booking, a phone call — created during a week that was supposed to
+ * be read-only. So the refusal is enforced in the decision, not left to the
+ * caller.
+ */
+describe('ReplyBrainService.decide — order flow', () => {
+  const READY_DRAFT = {
+    id: 3,
+    conversation_id: 10,
+    channel_id: 1,
+    status: 'confirming',
+    product_id: 311,
+    product_name: 'Kasri Oil',
+    unit_price: 990,
+    quantity: 1,
+    customer_name: 'Karim',
+    phone: '01712345678',
+    address: 'dhaka, rampura',
+    district: 'Dhaka',
+    delivery_charge: 60,
+    sales_order_id: null,
+  } as any;
+
+  const ORDER_SETTINGS = {
+    enabled: true,
+    delivery_charge_inside_dhaka: 60,
+    delivery_charge_outside_dhaka: 110,
+    confirm_words: ['confirm', 'কনফার্ম'],
+    cancel_words: ['cancel', 'lagbe na'],
+  };
+
+  function makeBrain(options: { mode?: string; draft?: any; escalatePhone?: boolean } = {}) {
+    const place = jest.fn(async () => ({ id: 555, orderNumber: 'SO-1', total: 1050 }));
+    const cancel = jest.fn(async () => undefined);
+
+    const settings = {
+      getEscalation: jest.fn(async () => ({
+        keywords: [],
+        escalate_on_order_number: false,
+        escalate_on_phone_number: options.escalatePhone ?? true,
+        create_support_ticket: false,
+      })),
+      getGlobal: jest.fn(async () => ({ fallback_action: 'escalate', faq_direct_reply: true })),
+      getAi: jest.fn(async () => ({ enabled: false })),
+      getOrder: jest.fn(async () => ORDER_SETTINGS),
+    } as any;
+
+    const orderService = {
+      openDraft: jest.fn(async () => options.draft ?? null),
+      startDraft: jest.fn(async () => READY_DRAFT),
+      apply: jest.fn(async (d: any, patch: any) => ({ ...d, ...patch })),
+      cancel,
+      place,
+    } as any;
+
+    const brain = new ReplyBrainService(
+      { find: jest.fn(async () => []) } as any,
+      settings,
+      { buildContext: jest.fn(async () => EMPTY_ERP) } as any,
+      { generateReply: jest.fn(), extractOrder: jest.fn(async () => null) } as any,
+      { activeForChannel: jest.fn(async () => []), recordHit: jest.fn() } as any,
+      { styleExamples: jest.fn(async () => []) } as any,
+      orderService,
+    );
+
+    const channel = { id: 1, name: 'Kasri Oil', mode: options.mode ?? 'live' } as any;
+    const ask = (text: string) =>
+      brain.decide({ channel, threadType: 'message', text, history: [], conversationId: 10 });
+
+    return { ask, place, cancel, orderService };
+  }
+
+  it('creates the order when the channel is live and the customer confirms', async () => {
+    const { ask, place } = makeBrain({ draft: READY_DRAFT, mode: 'live' });
+
+    const decision = await ask('confirm');
+
+    expect(place).toHaveBeenCalledTimes(1);
+    expect(decision.source).toBe('order');
+    expect(decision.text).toContain('SO-1');
+  });
+
+  it('refuses to create anything in shadow mode, however clear the confirmation', async () => {
+    const { ask, place } = makeBrain({ draft: READY_DRAFT, mode: 'shadow' });
+
+    const decision = await ask('confirm');
+
+    expect(place).not.toHaveBeenCalled();
+    expect(decision.action).toBe('reply');
+    expect(decision.reason).toContain('Order NOT placed');
+  });
+
+  it('refuses in off mode too', async () => {
+    const { ask, place } = makeBrain({ draft: READY_DRAFT, mode: 'off' });
+    await ask('কনফার্ম');
+    expect(place).not.toHaveBeenCalled();
+  });
+
+  it('does not escalate on the phone number the customer was asked for', async () => {
+    // escalate_on_phone_number is on, and without the carve-out the flow could
+    // never get past its own question.
+    const collecting = { ...READY_DRAFT, status: 'collecting', phone: null };
+    const { ask, place } = makeBrain({ draft: collecting, escalatePhone: true });
+
+    const decision = await ask('01712345678');
+
+    expect(decision.reason).not.toContain('phone number');
+    expect(place).not.toHaveBeenCalled();
+  });
+
+  it('still escalates on a phone number when no order is open', async () => {
+    const { ask } = makeBrain({ draft: null, escalatePhone: true });
+
+    const decision = await ask('amar number 01712345678');
+
+    expect(decision.action).toBe('escalate');
+    expect(decision.reason).toContain('phone number');
+  });
+
+  it('cancels the draft when the customer backs out', async () => {
+    const { ask, cancel, place } = makeBrain({ draft: READY_DRAFT });
+
+    const decision = await ask('na lagbe na');
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(place).not.toHaveBeenCalled();
+    expect(decision.text).toContain('বাতিল');
+  });
+
+  it('leaves ordinary questions alone when no order is open', async () => {
+    const { ask, orderService } = makeBrain({ draft: null });
+
+    await ask('delivery koto din lagbe?');
+
+    expect(orderService.startDraft).not.toHaveBeenCalled();
+  });
+
+  it('hands over rather than guessing when the AI is off mid-order', async () => {
+    // Nothing else can read a name or an address out of free text.
+    const collecting = { ...READY_DRAFT, status: 'collecting', address: null };
+    const { ask, place } = makeBrain({ draft: collecting });
+
+    const decision = await ask('amar bari rampura');
+
+    expect(decision.action).toBe('escalate');
+    expect(place).not.toHaveBeenCalled();
   });
 });

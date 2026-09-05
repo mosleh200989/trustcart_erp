@@ -45,7 +45,7 @@ import {
 } from './dto/automation.dto';
 
 /** Settings sections the panel is allowed to patch. `gate` is off-limits here. */
-const EDITABLE_SETTING_SECTIONS = new Set(['global', 'ai', 'escalation']);
+const EDITABLE_SETTING_SECTIONS = new Set(['global', 'ai', 'escalation', 'order']);
 
 /**
  * Everything the Automation panel talks to.

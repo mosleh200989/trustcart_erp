@@ -9,6 +9,7 @@ import { AutomationRule } from './automation-rule.entity';
 import { AutomationOutbox } from './automation-outbox.entity';
 import { AutomationAudit } from './automation-audit.entity';
 import { AutomationFaq } from './automation-faq.entity';
+import { AutomationOrderDraft } from './automation-order-draft.entity';
 import { AutomationImportRun } from './automation-import-run.entity';
 import { AutomationHistoryThread } from './automation-history-thread.entity';
 import { AutomationHistoryMessage } from './automation-history-message.entity';
@@ -23,6 +24,7 @@ const ENTITIES = [
   AutomationOutbox,
   AutomationAudit,
   AutomationFaq,
+  AutomationOrderDraft,
   AutomationImportRun,
   AutomationHistoryThread,
   AutomationHistoryMessage,
@@ -83,6 +85,7 @@ describe('automation entity metadata', () => {
       'automation_outbox',
       'automation_audit',
       'automation_faqs',
+      'automation_order_drafts',
       'automation_import_runs',
       'automation_history_threads',
       'automation_history_messages',

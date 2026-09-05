@@ -69,12 +69,12 @@ export default function AutomationSettingsPage() {
     load();
   }, [load]);
 
-  const patch = (section: 'global' | 'ai' | 'escalation', values: Record<string, any>) => {
+  const patch = (section: 'global' | 'ai' | 'escalation' | 'order', values: Record<string, any>) => {
     if (!settings) return;
     setSettings({ ...settings, [section]: { ...settings[section], ...values } } as AutomationSettings);
   };
 
-  const save = async (section: 'global' | 'ai' | 'escalation') => {
+  const save = async (section: 'global' | 'ai' | 'escalation' | 'order') => {
     if (!settings) return;
     setSaving(section);
     try {
@@ -387,6 +387,90 @@ export default function AutomationSettingsPage() {
                 onChange={(e) => patch('global', { log_retention_days: Number(e.target.value) })}
               />
             </Field>
+          </div>
+        </Card>
+
+        <Card
+          title="Orders from Messenger"
+          subtitle="The only part of this panel that writes to the ERP. Off until you turn it on."
+          actions={
+            canManage && (
+              <button onClick={() => save('order')} className={buttonClass} disabled={saving === 'order'}>
+                <FaSave /> {saving === 'order' ? 'Saving…' : 'Save'}
+              </button>
+            )
+          }
+        >
+          <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+            <Check
+              label="Let the bot take orders in Messenger"
+              hint="Everything else in this panel can only produce words. This one creates a real order in the ERP, at status “processing”, cash on delivery. The bot reads the whole order back and waits for the customer to confirm in writing before anything is created — and it never creates an order unless the channel is live."
+              checked={settings.order.enabled}
+              onChange={(v) => patch('order', { enabled: v })}
+              disabled={!canManage}
+            />
+            {settings.order.enabled && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field label="Delivery charge inside Dhaka" hint="Quoted in the read-back and saved on the order">
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputClass}
+                    disabled={!canManage}
+                    value={settings.order.delivery_charge_inside_dhaka}
+                    onChange={(e) =>
+                      patch('order', { delivery_charge_inside_dhaka: Number(e.target.value) })
+                    }
+                  />
+                </Field>
+                <Field label="Delivery charge outside Dhaka">
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputClass}
+                    disabled={!canManage}
+                    value={settings.order.delivery_charge_outside_dhaka}
+                    onChange={(e) =>
+                      patch('order', { delivery_charge_outside_dhaka: Number(e.target.value) })
+                    }
+                  />
+                </Field>
+                <Field label="Words that confirm an order" hint="Comma separated. Matched anywhere in the message.">
+                  <input
+                    className={inputClass}
+                    disabled={!canManage}
+                    value={(settings.order.confirm_words || []).join(', ')}
+                    onChange={(e) =>
+                      patch('order', {
+                        confirm_words: e.target.value
+                          .split(',')
+                          .map((word) => word.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Words that cancel an order">
+                  <input
+                    className={inputClass}
+                    disabled={!canManage}
+                    value={(settings.order.cancel_words || []).join(', ')}
+                    onChange={(e) =>
+                      patch('order', {
+                        cancel_words: e.target.value
+                          .split(',')
+                          .map((word) => word.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                  />
+                </Field>
+                <p className="sm:col-span-2 text-xs text-slate-600">
+                  Cash on delivery only. The bot never asks for a bKash number or a transaction
+                  ID, and never mentions stock.
+                </p>
+              </div>
+            )}
           </div>
         </Card>
 

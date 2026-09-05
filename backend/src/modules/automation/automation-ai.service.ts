@@ -13,6 +13,44 @@ import { AnthropicProvider } from './ai/anthropic.provider';
 
 export type AiTurn = { role: 'user' | 'assistant'; text: string };
 
+/**
+ * What we ask the model to pull out of an order conversation.
+ *
+ * Extraction only — the model never decides that an order should be placed,
+ * only reports what the customer has said so far. Deciding is the reply
+ * brain's job, and placing is gated on an explicit confirmation from a person.
+ */
+const ORDER_EXTRACTION_CONTRACT = `
+Read the conversation and report ONLY what the customer has actually stated.
+Respond with a single JSON object and nothing else:
+{
+  "wants_to_order": <true if the customer is trying to buy something>,
+  "product_id": <the id from CANDIDATE PRODUCTS they chose, or null>,
+  "quantity": <a positive whole number, or null>,
+  "customer_name": <their name, or null>,
+  "phone": <their mobile number exactly as they typed it, or null>,
+  "address": <their full delivery address, or null>,
+  "district": <the district only, or null>
+}
+Rules:
+- Never invent a value. If they have not said it, the field is null.
+- Only use a product_id that appears in CANDIDATE PRODUCTS. If they named
+  something not on that list, product_id is null.
+- Do not carry over a value the customer has since corrected.
+- A phone number is theirs only if they gave it as their own contact number.
+`.trim();
+
+export type OrderExtraction = {
+  wantsToOrder: boolean;
+  productId: number | null;
+  quantity: number | null;
+  customerName: string | null;
+  phone: string | null;
+  address: string | null;
+  district: string | null;
+};
+
+
 export type AiReply = {
   text: string | null;
   confidence: number;
@@ -268,4 +306,87 @@ export class AutomationAiService {
       return { text: null, confidence: 0, escalate: true, reason, model, usage: null };
     }
   }
+
+  /**
+   * Pulls order details out of what the customer has written.
+   *
+   * A separate call from the reply, deliberately: the reply is free prose and
+   * this is a form. Asking one response to do both means a formatting slip in
+   * the prose can corrupt an address, and an address is the field nobody
+   * notices is wrong until a parcel goes to the wrong town.
+   *
+   * Returns null when the model cannot be reached or answers unusably, which
+   * the caller treats as "learned nothing this turn" rather than as an error.
+   */
+  async extractOrder(options: {
+    settings: AutomationAiSettings;
+    history: AiTurn[];
+    incomingText: string;
+    candidates: Array<{ id: number; name: string; price: number; salePrice: number | null }>;
+    known: Record<string, unknown>;
+  }): Promise<OrderExtraction | null> {
+    const { settings, history, incomingText, candidates, known } = options;
+    const provider = createAiProvider(settings as any);
+    if (provider.configurationError()) return null;
+
+    const system = [
+      'You extract structured order details from a Bangla/Banglish Messenger conversation for an online shop.',
+      '--- CANDIDATE PRODUCTS ---',
+      candidates.length > 0
+        ? candidates
+            .map((c) => `- id ${c.id}: ${c.name} — ${c.salePrice ?? c.price} BDT`)
+            .join('\n')
+        : 'None matched yet.',
+      '--- ALREADY KNOWN (do not repeat unless the customer corrected it) ---',
+      JSON.stringify(known),
+      ORDER_EXTRACTION_CONTRACT,
+    ].join('\n\n');
+
+    try {
+      const response = await provider.complete({
+        system,
+        messages: [
+          ...history.map((turn) => ({ role: turn.role, content: turn.text })),
+          { role: 'user' as const, content: incomingText },
+        ],
+        model: resolveModel(settings as any),
+        maxTokens: 400,
+        effort: 'low',
+        jsonMode: settings.json_mode !== false,
+      });
+
+      const raw = String(response.text ?? '');
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start === -1 || end <= start) return null;
+
+      const parsed = JSON.parse(raw.slice(start, end + 1));
+      const quantity = Number(parsed.quantity);
+      const productId = Number(parsed.product_id);
+
+      const text = (value: unknown): string | null => {
+        const trimmed = typeof value === 'string' ? value.trim() : '';
+        return trimmed ? trimmed.slice(0, 400) : null;
+      };
+
+      return {
+        wantsToOrder: Boolean(parsed.wants_to_order),
+        // Only a product the caller offered. A hallucinated id would put the
+        // wrong line on a real order.
+        productId:
+          Number.isFinite(productId) && candidates.some((c) => c.id === productId)
+            ? productId
+            : null,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : null,
+        customerName: text(parsed.customer_name),
+        phone: text(parsed.phone),
+        address: text(parsed.address),
+        district: text(parsed.district),
+      };
+    } catch (error: any) {
+      this.logger.warn(`Order extraction failed: ${error?.message ?? error}`);
+      return null;
+    }
+  }
 }
+
