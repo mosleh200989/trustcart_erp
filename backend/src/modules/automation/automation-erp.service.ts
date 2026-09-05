@@ -148,12 +148,30 @@ export class AutomationErpService {
         .where('p.status IN (:...statuses)', { statuses: allowedStatuses })
         .take(5);
 
+      const matches = (index: number) => `(p.name_en ILIKE :t${index} OR p.name_bn ILIKE :t${index})`;
+
       query.andWhere(
-        `(${tokens
-          .map((_, index) => `p.name_en ILIKE :t${index} OR p.name_bn ILIKE :t${index}`)
-          .join(' OR ')})`,
+        `(${tokens.map((_, index) => matches(index)).join(' OR ')})`,
         Object.fromEntries(tokens.map((token, index) => [`t${index}`, `%${token}%`])),
       );
+
+      // Rank, rather than take whatever the planner returns first.
+      //
+      // The clause above is an OR, so "kasri oil er dam koto" matches every
+      // product with "oil" in its name. Unordered, that let a question about
+      // Kasri Oil be answered with the price of a coconut oil trial pack — the
+      // rule template quotes products[0] and there was no products[0] worth
+      // trusting. Most tokens matched wins; a shorter name breaks the tie,
+      // because "Kasri Oil" is a better answer to "kasri oil" than
+      // "Kasri oil (1 piece) + hot water bag + joint guard" is.
+      const score = tokens
+        .map((_, index) => `(CASE WHEN ${matches(index)} THEN 1 ELSE 0 END)`)
+        .join(' + ');
+      query
+        .addSelect(score, 'match_score')
+        .orderBy('match_score', 'DESC')
+        .addOrderBy("length(COALESCE(p.name_en, p.name_bn, ''))", 'ASC')
+        .addOrderBy('p.id', 'ASC');
 
       if (storefrontId) {
         const scoped = await this.storefrontProductRepository.find({

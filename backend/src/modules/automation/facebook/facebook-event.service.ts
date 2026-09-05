@@ -477,6 +477,12 @@ export class FacebookEventService {
       // A NULL source is still a bot reply — `source <> 'human'` alone evaluates
       // to NULL for those rows and would quietly exclude them from the cap.
       .andWhere('(m.source IS NULL OR m.source <> :human)', { human: 'human' })
+      // Drafts held in shadow mode do not count. The cap exists so a
+      // misbehaving rule cannot spam one customer; a draft nobody has seen
+      // cannot spam anyone, and counting them meant a shadow watch fell silent
+      // after three messages an hour — silencing exactly the thing the watch
+      // is meant to observe.
+      .andWhere('m.shadow = false')
       .andWhere('m.created_at >= :since', { since })
       .getCount();
 
