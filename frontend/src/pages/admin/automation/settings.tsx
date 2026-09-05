@@ -539,6 +539,36 @@ export default function AutomationSettingsPage() {
               />
             </Field>
 
+            <div className="md:col-span-2 rounded-lg border border-slate-200 p-3">
+              <Check
+                label="Write the way the team writes"
+                hint="Pastes the replies you starred on the History import page into the prompt as a voice sample. They teach shape only — every figure in them was removed at import because it was already out of date, and any example still carrying a number is withheld rather than sent."
+                checked={settings.ai.style_examples_enabled !== false}
+                onChange={(v) => patch('ai', { style_examples_enabled: v })}
+                disabled={!canManage}
+              />
+              {settings.ai.style_examples_enabled !== false && (
+                <div className="mt-3 max-w-xs">
+                  <Field
+                    label="How many starred replies"
+                    hint="These ride on every message the AI answers."
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      className={inputClass}
+                      disabled={!canManage}
+                      value={settings.ai.max_style_examples}
+                      onChange={(e) =>
+                        patch('ai', { max_style_examples: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                </div>
+              )}
+            </div>
+
             <div className="md:col-span-2">
               <Field
                 label="System prompt"

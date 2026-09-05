@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AutomationAiSettings } from './automation-settings.service';
 import { ErpContext } from './automation-erp.service';
 import { FaqFact } from './automation-faq.service';
+import { StyleExample } from './history/history-curation.service';
 import { AiMessage } from './ai/ai-provider.types';
 import {
   createAiProvider,
@@ -103,7 +104,46 @@ export class AutomationAiService {
       lines.push(`Known customer name: ${erp.customerName}`);
     }
 
-    return lines.length > 0 ? lines.join('\n') : 'No matching products or orders were found.';
+    if (faqs.length > 0) {
+      lines.push('');
+      lines.push('Shop policy, written by the team. Answer from these, in your own words:');
+      for (const faq of faqs) {
+        lines.push(`- Q: ${faq.question}`);
+        lines.push(`  A: ${faq.answer.replace(/\n+/g, ' ')}`);
+      }
+    }
+
+    return lines.length > 0
+      ? lines.join('\n')
+      : 'No matching products, orders or policy answers were found.';
+  }
+
+  /**
+   * Renders the starred replies as a voice sample.
+   *
+   * This is the half of the grounding split that carries no truth at all. Every
+   * figure in these messages was removed at import because it was already
+   * stale, so the block has to say plainly what to copy and what to ignore —
+   * a model shown "eta [PRICE] tk" and told nothing will cheerfully send a
+   * customer the literal word [PRICE].
+   */
+  private renderStyle(examples: StyleExample[]): string {
+    const lines = [
+      'Real replies our agents sent, kept only as a sample of how we write.',
+      'Copy the greeting, the tone, the sentence length and the formatting.',
+      'Do NOT copy anything factual from them: every number was deleted at',
+      'import because it was out of date, and [PRICE], [PHONE] and the like are',
+      'holes where a figure used to be. Never write a placeholder in a reply —',
+      'real numbers come from SHOP FACTS and nowhere else.',
+      '',
+    ];
+
+    examples.forEach((example, index) => {
+      // Indent continuation lines so a multi-line reply stays visibly one item.
+      lines.push(`${index + 1}. ${example.text.replace(/\n+/g, '\n   ')}`);
+    });
+
+    return lines.join('\n');
   }
 
   /**
@@ -154,10 +194,12 @@ export class AutomationAiService {
     history: AiTurn[];
     erp: ErpContext;
     faqs?: FaqFact[];
+    styleExamples?: StyleExample[];
     threadType: 'comment' | 'message';
   }): Promise<AiReply> {
     const { settings, persona, channelName, incomingText, history, erp, threadType } = options;
     const faqs = options.faqs ?? [];
+    const styleExamples = options.styleExamples ?? [];
     const provider = createAiProvider(settings as any);
     const model = resolveModel(settings as any);
 
@@ -175,8 +217,17 @@ export class AutomationAiService {
       '--- SHOP FACTS (the only facts you may state) ---',
       this.renderFacts(erp, faqs),
       '--- END SHOP FACTS ---',
+      styleExamples.length > 0
+        ? [
+            '--- HOW OUR TEAM WRITES (voice only, never facts) ---',
+            this.renderStyle(styleExamples),
+            '--- END HOW OUR TEAM WRITES ---',
+          ].join('\n')
+        : null,
       OUTPUT_CONTRACT,
-    ].join('\n\n');
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     const messages: AiMessage[] = [
       ...history.map((turn) => ({ role: turn.role, content: turn.text })),

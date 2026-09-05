@@ -306,6 +306,8 @@ export type AutomationSettings = {
     max_tokens: number;
     min_confidence: number;
     history_turns: number;
+    style_examples_enabled: boolean;
+    max_style_examples: number;
     system_prompt: string;
   };
   escalation: {
