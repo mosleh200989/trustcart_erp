@@ -26,12 +26,14 @@ function rule(overrides: Partial<AutomationRule> = {}): AutomationRule {
 
 const EMPTY_ERP: ErpContext = {
   products: [],
+  productsAreFeatured: false,
   orders: [],
   customerId: null,
   customerName: null,
 };
 
 const ERP_WITH_PRODUCT: ErpContext = {
+  productsAreFeatured: false,
   products: [
     { id: 7, name: 'Beard Oil', price: 850, salePrice: 699 },
   ],

@@ -20,6 +20,7 @@ import { AutomationGateGuard } from './automation-gate.guard';
 import { AutomationService } from './automation.service';
 import { AutomationFaqService } from './automation-faq.service';
 import { AutomationHealthService } from './automation-health.service';
+import { AutomationErpService } from './automation-erp.service';
 import { AutomationSettingsService } from './automation-settings.service';
 import { AutomationAuditService } from './automation-audit.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
@@ -61,6 +62,7 @@ export class AutomationController {
     private readonly automation: AutomationService,
     private readonly faqs: AutomationFaqService,
     private readonly health: AutomationHealthService,
+    private readonly erp: AutomationErpService,
     private readonly settings: AutomationSettingsService,
     private readonly audit: AutomationAuditService,
     private readonly events: FacebookEventService,
@@ -289,6 +291,26 @@ export class AutomationController {
   @RequirePermissions('view-automation')
   testRules(@Body() dto: TestRulesDto) {
     return this.automation.testRules(dto.channel_id, dto.text, dto.thread_type || 'message');
+  }
+
+  /**
+   * Catalogue lookup for the channel's featured-product picker.
+   *
+   * Uses the same search the reply engine uses, so what the panel shows is what
+   * the bot would find — including the ranking.
+   */
+  @Get('products')
+  @RequirePermissions('view-automation')
+  async searchProducts(@Query('q') q?: string, @Query('ids') ids?: string) {
+    if (ids) {
+      const wanted = ids
+        .split(',')
+        .map((value) => Number(value.trim()))
+        .filter(Number.isFinite);
+      return this.erp.findFeaturedProducts(wanted);
+    }
+    if (!q || !q.trim()) return [];
+    return this.erp.findProducts(q);
   }
 
   // ─── FAQ ─────────────────────────────────────────────────────────────────

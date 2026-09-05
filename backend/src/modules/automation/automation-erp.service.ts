@@ -34,6 +34,12 @@ export type OrderFact = {
 /** Everything the reply brain knows about the customer's question from our own data. */
 export type ErpContext = {
   products: ProductFact[];
+  /**
+   * True when these are the page's headline products rather than a match for
+   * anything the customer said. The prompt has to say so, or the model will
+   * answer "what is the price?" as though one specific product had been named.
+   */
+  productsAreFeatured: boolean;
   orders: OrderFact[];
   customerId: number | null;
   customerName: string | null;
@@ -72,6 +78,25 @@ export class AutomationErpService {
     private readonly customerRepository: Repository<Customer>,
     private readonly settings: AutomationSettingsService,
   ) {}
+
+  /**
+   * One catalogue row as the reply engine is allowed to see it.
+   *
+   * Shared by the search and the featured lookup so the two cannot drift — in
+   * particular so neither can start carrying stock.
+   */
+  private toFact(product: Product): ProductFact {
+    const base = Number(product.base_price) || 0;
+    const sale = product.sale_price != null ? Number(product.sale_price) : null;
+    return {
+      id: product.id,
+      name: product.name_en || product.name_bn || `#${product.id}`,
+      price: base,
+      // A sale price only counts when it is a real discount; 0 or a value above
+      // the base price is bad data, not an offer.
+      salePrice: sale && sale > 0 && sale < base ? sale : null,
+    };
+  }
 
   /** Order numbers the customer typed, e.g. `SO-1720000000-4821` or a bare 6+ digit run. */
   static extractOrderNumbers(text: string): string[] {
@@ -194,19 +219,7 @@ export class AutomationErpService {
       }
 
       const products = await query.getMany();
-
-      return products.map((product) => {
-        const base = Number(product.base_price) || 0;
-        const sale = product.sale_price != null ? Number(product.sale_price) : null;
-        return {
-          id: product.id,
-          name: product.name_en || product.name_bn || `#${product.id}`,
-          price: base,
-          // A sale price only counts when it is a real discount; 0 or a value
-          // above the base price is bad data, not an offer.
-          salePrice: sale && sale > 0 && sale < base ? sale : null,
-        };
-      });
+      return products.map((product) => this.toFact(product));
     } catch (error: any) {
       this.logger.warn(`Product lookup failed: ${error?.message}`);
       return [];
@@ -272,15 +285,58 @@ export class AutomationErpService {
   }
 
   /** Everything the reply brain needs from our own data, in one pass. */
-  async buildContext(text: string, storefrontId?: number | null): Promise<ErpContext> {
-    const [products, orders, customer] = await Promise.all([
+  /**
+   * The products a page is mainly about, by id.
+   *
+   * Used as the fallback when the customer's words match nothing. Returns them
+   * in the order the channel lists them, so the shop decides what gets
+   * mentioned first rather than the database.
+   */
+  async findFeaturedProducts(ids: number[]): Promise<ProductFact[]> {
+    const wanted = (Array.isArray(ids) ? ids : []).map(Number).filter(Number.isFinite);
+    if (wanted.length === 0) return [];
+
+    try {
+      const { product_statuses: statuses } = await this.settings.getGlobal();
+      const allowedStatuses =
+        Array.isArray(statuses) && statuses.length > 0 ? statuses : ['active', 'inactive'];
+
+      const rows = await this.productRepository
+        .createQueryBuilder('p')
+        .where('p.id IN (:...ids)', { ids: wanted })
+        .andWhere('p.status IN (:...statuses)', { statuses: allowedStatuses })
+        .getMany();
+
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      return wanted
+        .map((id) => byId.get(id))
+        .filter((row): row is Product => Boolean(row))
+        .map((product) => this.toFact(product));
+    } catch (error: any) {
+      this.logger.warn(`Featured product lookup failed: ${error?.message}`);
+      return [];
+    }
+  }
+
+  async buildContext(
+    text: string,
+    storefrontId?: number | null,
+    featuredProductIds?: number[] | null,
+  ): Promise<ErpContext> {
+    const [matched, orders, customer] = await Promise.all([
       this.findProducts(text, storefrontId),
       this.findOrders(text),
       this.findCustomerByText(text),
     ]);
 
+    // Only when nothing matched. A customer who named a product must never be
+    // shown a different one just because it is the page's headline item.
+    const products =
+      matched.length > 0 ? matched : await this.findFeaturedProducts(featuredProductIds ?? []);
+
     return {
       products,
+      productsAreFeatured: matched.length === 0 && products.length > 0,
       orders,
       customerId: customer?.id ?? null,
       customerName: customer?.name ?? null,

@@ -5,7 +5,7 @@ import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/services/api';
-import { automation, AutomationChannel } from '@/services/automation';
+import { automation, AutomationChannel, AutomationProduct } from '@/services/automation';
 import {
   Badge,
   Card,
@@ -31,8 +31,130 @@ const EMPTY_DRAFT: Draft = {
   reply_to_messages: true,
   private_reply_to_comments: false,
   max_replies_per_thread_hour: 3,
+  featured_product_ids: [],
   is_active: true,
 };
+
+/**
+ * The picker for the page's headline products.
+ *
+ * Separate component so the search state dies with the form. It resolves the
+ * saved ids to names on open, because a list of bare numbers tells nobody
+ * whether the right thing is configured.
+ */
+function FeaturedProducts({
+  ids,
+  onChange,
+}: {
+  ids: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const [chosen, setChosen] = useState<AutomationProduct[]>([]);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<AutomationProduct[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    automation
+      .resolveProducts(ids)
+      .then((rows) => {
+        if (!cancelled) setChosen(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // Resolve once per distinct id list, not on every keystroke elsewhere.
+  }, [ids.join(',')]);
+
+  const search = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    try {
+      setResults(await automation.searchProducts(query));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const add = (product: AutomationProduct) => {
+    if (ids.includes(product.id)) return;
+    setChosen((prev) => [...prev, product]);
+    onChange([...ids, product.id]);
+  };
+
+  const remove = (id: number) => {
+    setChosen((prev) => prev.filter((p) => p.id !== id));
+    onChange(ids.filter((value) => value !== id));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {chosen.length === 0 && (
+          <span className="text-xs text-slate-400">
+            Nothing chosen — a message that names no product will be handed to a person.
+          </span>
+        )}
+        {chosen.map((product) => (
+          <span
+            key={product.id}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs"
+          >
+            {product.name} — {product.salePrice ?? product.price} BDT
+            <button
+              type="button"
+              onClick={() => remove(product.id)}
+              className="font-bold text-slate-400 hover:text-red-600"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          className={inputClass}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              search();
+            }
+          }}
+          placeholder="Search the catalogue, e.g. kasri oil"
+        />
+        <button type="button" onClick={search} className={buttonSecondaryClass} disabled={searching}>
+          {searching ? 'Searching…' : 'Search'}
+        </button>
+      </div>
+
+      {results.length > 0 && (
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          {results.map((product) => (
+            <li key={product.id} className="flex items-center justify-between px-3 py-2 text-sm">
+              <span>
+                {product.name}{' '}
+                <span className="text-slate-500">— {product.salePrice ?? product.price} BDT</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => add(product)}
+                className="text-xs font-medium text-blue-600 hover:underline"
+                disabled={ids.includes(product.id)}
+              >
+                {ids.includes(product.id) ? 'Added' : 'Add'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /** Connected Facebook / Instagram pages: tokens, mode, brand voice, limits. */
 export default function AutomationChannelsPage() {
@@ -94,6 +216,7 @@ export default function AutomationChannelsPage() {
         greeting: draft.greeting || undefined,
         signature: draft.signature || undefined,
         max_replies_per_thread_hour: Number(draft.max_replies_per_thread_hour ?? 3),
+        featured_product_ids: draft.featured_product_ids ?? [],
         business_hours: draft.business_hours || {},
         is_active: draft.is_active !== false,
       };
@@ -296,6 +419,18 @@ export default function AutomationChannelsPage() {
                 }
               />
             </Field>
+
+            <div className="md:col-span-2">
+              <Field
+                label="Products this page is mainly about"
+                hint='Used only when the customer names no product. "dam koto?" names none — without these the bot has no price it is allowed to state and hands the question to a person.'
+              >
+                <FeaturedProducts
+                  ids={draft.featured_product_ids ?? []}
+                  onChange={(next) => setDraft({ ...draft, featured_product_ids: next })}
+                />
+              </Field>
+            </div>
 
             <Field label="Signature" hint="Appended to every reply, e.g. — TrustCart">
               <input
