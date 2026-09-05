@@ -19,8 +19,8 @@ const SETTINGS: AutomationOrderSettings = {
   enabled: true,
   delivery_charge_inside_dhaka: 60,
   delivery_charge_outside_dhaka: 110,
-  confirm_words: ['confirm', 'কনফার্ম', 'হ্যাঁ'],
-  cancel_words: ['cancel', 'বাতিল', 'lagbe na'],
+  confirm_words: ['confirm', 'কনফার্ম', 'হ্যাঁ', 'ji', 'জি', 'ok korun'],
+  cancel_words: ['cancel', 'বাতিল', 'lagbe na', 'nibo na'],
 };
 
 function draft(overrides: Partial<AutomationOrderDraft> = {}): AutomationOrderDraft {
@@ -225,5 +225,43 @@ describe('AutomationOrderService.place', () => {
 
     await expect(service.place(draft({ status: 'confirming' }))).rejects.toThrow('sales exploded');
     expect(updates.some((u) => u.status === 'confirming' && u.placed_at === null)).toBe(true);
+  });
+});
+
+/**
+ * The false positive that was live in production for about twenty minutes.
+ *
+ * `ji` is a perfectly good yes in Banglish. It also sits inside `jinis`, so a
+ * substring test read "ami ei jinis nibo na" — *I won't take this thing* — as
+ * agreement to the read-back. That is a real order created out of a refusal,
+ * and a shop only finds out when a parcel arrives.
+ */
+describe('AutomationOrderService.isConfirmation — whole words only', () => {
+  it.each([
+    'ami ei jinis nibo na',
+    'এই জিনিসটা বাদ দেন',
+    'জিনিসটা কি ভালো?',
+    'jinis ta valo?',
+  ])('does not read %s as a confirmation', (text) => {
+    expect(AutomationOrderService.isConfirmation(text, SETTINGS)).toBe(false);
+  });
+
+  it.each(['confirm', 'কনফার্ম', 'confirm korlam', 'হ্যাঁ ঠিক আছে', 'ok confirm'])(
+    'still accepts %s',
+    (text) => {
+      expect(AutomationOrderService.isConfirmation(text, SETTINGS)).toBe(true);
+    },
+  );
+
+  it('reads a refusal as a cancellation, not a confirmation', () => {
+    const text = 'ami ei jinis nibo na';
+    expect(AutomationOrderService.isCancellation(text, SETTINGS)).toBe(true);
+    expect(AutomationOrderService.isConfirmation(text, SETTINGS)).toBe(false);
+  });
+
+  it('matches a multi-word confirmation only when the words are adjacent', () => {
+    const settings = { ...SETTINGS, confirm_words: ['ok korun'] };
+    expect(AutomationOrderService.isConfirmation('ok korun', settings)).toBe(true);
+    expect(AutomationOrderService.isConfirmation('ok, ekhon korun', settings)).toBe(false);
   });
 });

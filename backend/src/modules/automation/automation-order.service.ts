@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AutomationOrderDraft } from './entities/automation-order-draft.entity';
 import { AutomationOrderSettings } from './automation-settings.service';
 import { SalesService } from '../sales/sales.service';
+import { containsAnyPhrase } from './text-tokens';
 
 /** A field the order cannot be placed without, and how to ask for it. */
 export type OrderField = 'product' | 'quantity' | 'customer_name' | 'phone' | 'address';
@@ -169,23 +170,20 @@ export class AutomationOrderService {
     );
   }
 
-  /** True when the customer's words are an unambiguous yes to the read-back. */
+  /**
+   * True when the customer's words are an unambiguous yes to the read-back.
+   *
+   * Whole words only. A substring test read "ami ei jinis nibo na" — *I won't
+   * take this thing* — as a confirmation, because "ji" is a perfectly good yes
+   * in Banglish and it also sits inside "jinis". This is the one comparison in
+   * the module whose false positive is a real order.
+   */
   static isConfirmation(text: string, settings: AutomationOrderSettings): boolean {
-    const value = String(text ?? '').toLowerCase().trim();
-    if (!value) return false;
-    return (settings.confirm_words || []).some((word) => {
-      const needle = String(word ?? '').toLowerCase().trim();
-      return Boolean(needle) && value.includes(needle);
-    });
+    return containsAnyPhrase(text, settings.confirm_words || []);
   }
 
   static isCancellation(text: string, settings: AutomationOrderSettings): boolean {
-    const value = String(text ?? '').toLowerCase().trim();
-    if (!value) return false;
-    return (settings.cancel_words || []).some((word) => {
-      const needle = String(word ?? '').toLowerCase().trim();
-      return Boolean(needle) && value.includes(needle);
-    });
+    return containsAnyPhrase(text, settings.cancel_words || []);
   }
 
   // ─── Persistence ─────────────────────────────────────────────────────────
