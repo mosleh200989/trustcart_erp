@@ -1,19 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { AutomationSetting } from './entities/automation-setting.entity';
-import { AutomationChannel } from './entities/automation-channel.entity';
-import { AutomationEvent } from './entities/automation-event.entity';
-import { AutomationConversation } from './entities/automation-conversation.entity';
-import { AutomationMessage } from './entities/automation-message.entity';
-import { AutomationRule } from './entities/automation-rule.entity';
-import { AutomationFaq } from './entities/automation-faq.entity';
-import { AutomationOrderDraft } from './entities/automation-order-draft.entity';
-import { AutomationOutbox } from './entities/automation-outbox.entity';
-import { AutomationAudit } from './entities/automation-audit.entity';
-import { AutomationImportRun } from './entities/automation-import-run.entity';
-import { AutomationHistoryThread } from './entities/automation-history-thread.entity';
-import { AutomationHistoryMessage } from './entities/automation-history-message.entity';
+import { AUTOMATION_ENTITIES } from './entities';
 
 import { Product } from '../products/product.entity';
 import { SalesOrder } from '../sales/sales-order.entity';
@@ -60,19 +48,7 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      AutomationSetting,
-      AutomationChannel,
-      AutomationEvent,
-      AutomationConversation,
-      AutomationMessage,
-      AutomationRule,
-      AutomationFaq,
-      AutomationOrderDraft,
-      AutomationOutbox,
-      AutomationAudit,
-      AutomationImportRun,
-      AutomationHistoryThread,
-      AutomationHistoryMessage,
+      ...AUTOMATION_ENTITIES,
       // Read-only, for grounding replies and escalating to support.
       Product,
       SalesOrder,

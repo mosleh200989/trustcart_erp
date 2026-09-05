@@ -270,17 +270,7 @@ import { TelephonyAgentPresenceEvent } from './modules/telephony/entities/teleph
 import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withdrawal-request.entity';
 
 // Automation Entities (Facebook / Messenger automation)
-import { AutomationSetting } from './modules/automation/entities/automation-setting.entity';
-import { AutomationChannel } from './modules/automation/entities/automation-channel.entity';
-import { AutomationEvent } from './modules/automation/entities/automation-event.entity';
-import { AutomationConversation } from './modules/automation/entities/automation-conversation.entity';
-import { AutomationMessage } from './modules/automation/entities/automation-message.entity';
-import { AutomationRule } from './modules/automation/entities/automation-rule.entity';
-import { AutomationOutbox } from './modules/automation/entities/automation-outbox.entity';
-import { AutomationAudit } from './modules/automation/entities/automation-audit.entity';
-import { AutomationImportRun } from './modules/automation/entities/automation-import-run.entity';
-import { AutomationHistoryThread } from './modules/automation/entities/automation-history-thread.entity';
-import { AutomationHistoryMessage } from './modules/automation/entities/automation-history-message.entity';
+import { AUTOMATION_ENTITIES } from './modules/automation/entities';
 import { AutomationModule } from './modules/automation/automation.module';
 
 @Module({
@@ -401,18 +391,12 @@ import { AutomationModule } from './modules/automation/automation.module';
             TelephonyAgentPresenceEvent,
             // Loyalty
             WalletWithdrawalRequest,
-            // Automation entities
-            AutomationSetting,
-            AutomationChannel,
-            AutomationEvent,
-            AutomationConversation,
-            AutomationMessage,
-            AutomationRule,
-            AutomationOutbox,
-            AutomationAudit,
-            AutomationImportRun,
-            AutomationHistoryThread,
-            AutomationHistoryMessage,
+            // Automation entities — one shared list, so an entity cannot be
+            // registered with the module but missed here. Registering only
+            // there yields a repository whose every query throws
+            // EntityMetadataNotFoundError, which nothing but a live message
+            // catches.
+            ...AUTOMATION_ENTITIES,
             // Issues
             Issue, IssueComment, IssueAttachment, IssueEvent,
             // Login sessions (devices) and sign-in attempts
