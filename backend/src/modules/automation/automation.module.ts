@@ -31,6 +31,7 @@ import { AutomationErpService } from './automation-erp.service';
 import { AutomationAiService } from './automation-ai.service';
 import { AutomationFaqService } from './automation-faq.service';
 import { AutomationOrderService } from './automation-order.service';
+import { AutomationHealthService } from './automation-health.service';
 import { AutomationService } from './automation.service';
 
 import { FacebookApiService } from './facebook/facebook-api.service';
@@ -94,6 +95,7 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
     AutomationAiService,
     AutomationFaqService,
     AutomationOrderService,
+    AutomationHealthService,
     AutomationService,
     FacebookApiService,
     ReplyBrainService,

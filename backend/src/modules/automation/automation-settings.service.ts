@@ -74,6 +74,12 @@ export type AutomationGlobalSettings = {
    * the panel fills up.
    */
   faq_max_in_prompt: number;
+  /**
+   * How long a connected page may go without a single webhook before the
+   * panel says so. Silence is the failure mode that looks like nothing being
+   * wrong, so it needs its own alarm.
+   */
+  health_silence_hours: number;
 };
 
 export type AutomationAiSettings = {
@@ -171,6 +177,7 @@ const DEFAULTS: {
     faq_direct_reply: true,
     faq_min_score: 0.75,
     faq_max_in_prompt: 20,
+    health_silence_hours: 24,
   },
   ai: {
     enabled: false,

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FaExclamationTriangle, FaPowerOff, FaSyncAlt } from 'react-icons/fa';
+import { FaExclamationTriangle, FaHeartbeat, FaPowerOff, FaSyncAlt } from 'react-icons/fa';
 import AutomationLayout from '@/layouts/AutomationLayout';
 import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { automation, AutomationOverview } from '@/services/automation';
+import { automation, AutomationChannelHealth, AutomationOverview } from '@/services/automation';
 import {
   Badge,
   Card,
@@ -26,6 +26,8 @@ export default function AutomationOverviewPage() {
   const unlocked = useAutomationUnlocked();
   const { hasPermission } = useAuth();
   const [data, setData] = useState<AutomationOverview | null>(null);
+  const [health, setHealth] = useState<AutomationChannelHealth[]>([]);
+  const [checking, setChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -37,7 +39,12 @@ export default function AutomationOverviewPage() {
     if (!unlocked) return;
     setLoading(true);
     try {
-      setData(await automation.overview());
+      const [overview, healthRows] = await Promise.all([
+        automation.overview(),
+        automation.health().catch(() => [] as AutomationChannelHealth[]),
+      ]);
+      setData(overview);
+      setHealth(healthRows);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not load the automation overview'));
     } finally {
@@ -64,6 +71,21 @@ export default function AutomationOverviewPage() {
     }
   };
 
+  const runHealthCheck = async () => {
+    setChecking(true);
+    try {
+      setHealth(await automation.runHealthCheck());
+      toast.success('Connection checked');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not check the connection'));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const broken = health.filter((row) => row.status === 'error');
+  const warned = health.filter((row) => row.status === 'warning');
+
   const counters = data?.counters;
   const webhook = data?.webhook;
   const global = data?.settings.global;
@@ -77,6 +99,12 @@ export default function AutomationOverviewPage() {
           <button onClick={load} className={buttonSecondaryClass} disabled={loading}>
             <FaSyncAlt className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
+          {canManage && (
+            <button onClick={runHealthCheck} className={buttonSecondaryClass} disabled={checking}>
+              <FaHeartbeat className={checking ? 'animate-pulse' : ''} />
+              {checking ? 'Checking…' : 'Check connection'}
+            </button>
+          )}
           {canManage && data && (
             <button onClick={toggleKillSwitch} className={buttonDangerClass} disabled={busy}>
               <FaPowerOff />
@@ -92,6 +120,41 @@ export default function AutomationOverviewPage() {
         <EmptyState message="No data" hint="Try refreshing." />
       ) : (
         <div className="space-y-6">
+          {broken.length > 0 && (
+            <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+              <FaExclamationTriangle className="mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <strong>
+                  {broken.length === 1
+                    ? 'A page is disconnected from Facebook.'
+                    : `${broken.length} pages are disconnected from Facebook.`}
+                </strong>
+                {broken.map((row) => (
+                  <p key={row.channelId}>
+                    <span className="font-semibold">{row.name}:</span> {row.detail}
+                  </p>
+                ))}
+                <p className="text-xs opacity-80">
+                  Checked {formatWhen(broken[0].checkedAt)}. Nothing arrives while this is true —
+                  an empty Events page is the symptom, not the cause.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {broken.length === 0 && warned.length > 0 && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+              <FaExclamationTriangle className="mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                {warned.map((row) => (
+                  <p key={row.channelId}>
+                    <span className="font-semibold">{row.name}:</span> {row.detail}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
           {global?.kill_switch && (
             <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">
               <FaExclamationTriangle className="mt-0.5 shrink-0" />

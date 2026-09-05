@@ -85,6 +85,17 @@ export class AutomationChannel {
   @Column({ type: 'timestamp', nullable: true })
   last_event_at!: Date | null;
 
+  /** Result of the last connection check: ok | warning | error | unknown. */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  health_status!: string | null;
+
+  /** Why, in words someone can act on. Never contains the access token. */
+  @Column({ type: 'text', nullable: true })
+  health_detail!: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  health_checked_at!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
 
