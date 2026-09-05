@@ -19,6 +19,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { AutomationGateGuard } from './automation-gate.guard';
 import { AutomationService } from './automation.service';
 import { AutomationFaqService } from './automation-faq.service';
+import { AutomationHealthService } from './automation-health.service';
 import { AutomationSettingsService } from './automation-settings.service';
 import { AutomationAuditService } from './automation-audit.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
@@ -59,6 +60,7 @@ export class AutomationController {
   constructor(
     private readonly automation: AutomationService,
     private readonly faqs: AutomationFaqService,
+    private readonly health: AutomationHealthService,
     private readonly settings: AutomationSettingsService,
     private readonly audit: AutomationAuditService,
     private readonly events: FacebookEventService,
@@ -78,6 +80,24 @@ export class AutomationController {
   @RequirePermissions('view-automation')
   overview() {
     return this.automation.overview();
+  }
+
+  /** Stored verdicts only — no Graph calls, safe to poll. */
+  @Get('health')
+  @RequirePermissions('view-automation')
+  getHealth() {
+    return this.health.summary();
+  }
+
+  /** Actually calls Facebook. Behind manage-automation because it costs quota. */
+  @Post('health/check')
+  @RequirePermissions('manage-automation')
+  async runHealthCheck(@Req() request: Request) {
+    const results = await this.health.checkAll();
+    await this.audit.record(this.actor(request), 'health.check', 'channel', null, null, {
+      results: results.map((r) => ({ channel: r.name, status: r.status })),
+    });
+    return results;
   }
 
   @Get('settings')

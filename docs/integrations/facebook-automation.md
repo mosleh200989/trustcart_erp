@@ -301,3 +301,32 @@ makes the order impossible to finish. It still fires everywhere else.
 The flow needs the AI layer for extraction — nothing else can read a name or an
 address out of free text. With the AI off, a thread that has an open draft is
 handed to a person rather than guessed at.
+
+---
+
+## 13. Connection health
+
+The Kasri page stopped receiving webhooks on 3 September and nobody noticed for
+two days. Nothing looked wrong: the endpoint answered, the secret was
+configured, and the events table was empty — which is exactly what a quiet day
+looks like. The cause was the Facebook app having its **API access blocked**,
+which one Graph call surfaces immediately.
+
+**Panel → Overview** now carries a red banner when a page is disconnected, and
+a **Check connection** button that probes Facebook on demand. A cron repeats it
+every six hours.
+
+Two independent signals, because either alone has a blind spot:
+
+| Signal | Catches | Misses |
+|---|---|---|
+| Graph probe (`/me`, `/{page}/subscribed_apps`) | dead token, blocked app, page subscribed to nothing or to the wrong fields | a page that is subscribed but silently not delivering |
+| Silence (`health_silence_hours`, default 24) | anything that stops deliveries | takes a day, and cannot tell a broken page from a quiet one |
+
+A dead token outranks silence in the report, because fixing the token is the
+action and the silence is a symptom of it.
+
+Reading the subscription needs `pages_manage_metadata`. A token can lack it and
+still receive and send perfectly well, so that case is reported as healthy with
+a note rather than as a failure.
+

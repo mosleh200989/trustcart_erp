@@ -331,6 +331,14 @@ export type AutomationSettings = {
   };
 };
 
+export type AutomationChannelHealth = {
+  channelId: number;
+  name: string;
+  status: 'ok' | 'warning' | 'error' | 'unknown';
+  detail: string;
+  checkedAt: string;
+};
+
 export type AutomationOverview = {
   settings: AutomationSettings;
   channels: AutomationChannel[];
@@ -391,6 +399,15 @@ export const automationGate = {
 };
 
 export const automation = {
+  async health(): Promise<AutomationChannelHealth[]> {
+    const res = await automationClient.get('/automation/health');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async runHealthCheck(): Promise<AutomationChannelHealth[]> {
+    const res = await automationClient.post('/automation/health/check');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
   async overview(): Promise<AutomationOverview> {
     const res = await automationClient.get('/automation/overview');
     return res.data;
