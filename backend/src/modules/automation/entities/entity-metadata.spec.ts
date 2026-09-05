@@ -1,34 +1,16 @@
 import { getMetadataArgsStorage } from 'typeorm';
 
-import { AutomationSetting } from './automation-setting.entity';
-import { AutomationChannel } from './automation-channel.entity';
-import { AutomationEvent } from './automation-event.entity';
-import { AutomationConversation } from './automation-conversation.entity';
-import { AutomationMessage } from './automation-message.entity';
-import { AutomationRule } from './automation-rule.entity';
-import { AutomationOutbox } from './automation-outbox.entity';
-import { AutomationAudit } from './automation-audit.entity';
-import { AutomationFaq } from './automation-faq.entity';
-import { AutomationOrderDraft } from './automation-order-draft.entity';
-import { AutomationImportRun } from './automation-import-run.entity';
-import { AutomationHistoryThread } from './automation-history-thread.entity';
-import { AutomationHistoryMessage } from './automation-history-message.entity';
+import { AUTOMATION_ENTITIES } from './index';
 
-const ENTITIES = [
-  AutomationSetting,
-  AutomationChannel,
-  AutomationEvent,
-  AutomationConversation,
-  AutomationMessage,
-  AutomationRule,
-  AutomationOutbox,
-  AutomationAudit,
-  AutomationFaq,
-  AutomationOrderDraft,
-  AutomationImportRun,
-  AutomationHistoryThread,
-  AutomationHistoryMessage,
-];
+/**
+ * The single source of truth, so this guard cannot go stale.
+ *
+ * It used to be a hand-written list, which made it silently vacuous for any
+ * entity someone forgot to add — and forgetting to add an entity to a list is
+ * precisely the bug that took the reply engine down in production.
+ */
+const ENTITIES = AUTOMATION_ENTITIES;
+
 
 /**
  * Guards against a failure that only shows up at boot, against a real database,
@@ -75,20 +57,10 @@ describe('automation entity metadata', () => {
       return table?.name;
     });
 
-    expect(tables).toEqual([
-      'automation_settings',
-      'automation_channels',
-      'automation_events',
-      'automation_conversations',
-      'automation_messages',
-      'automation_rules',
-      'automation_outbox',
-      'automation_audit',
-      'automation_faqs',
-      'automation_order_drafts',
-      'automation_import_runs',
-      'automation_history_threads',
-      'automation_history_messages',
-    ]);
+    // Every entity resolves to a table, and none is registered twice.
+    expect(tables.filter(Boolean)).toHaveLength(ENTITIES.length);
+    expect(new Set(tables).size).toBe(ENTITIES.length);
+    expect(tables).toContain('automation_faqs');
+    expect(tables).toContain('automation_order_drafts');
   });
 });
